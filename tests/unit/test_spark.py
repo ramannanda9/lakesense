@@ -108,7 +108,7 @@ def test_spark_provider_matches_pandas_provider(spark):
             baseline = build_baseline(
                 records=[p_rec],
                 config=BaselineConfig(
-                    "ds_test", strategy=BaselineStrategy.ROLLING_WINDOW, window_days=1
+                    "ds_test", strategy=BaselineStrategy.ROLLING_WINDOW, window_days=3650
                 ),
                 sketch_type=p_rec.sketch_type,
                 column=p_rec.column,
