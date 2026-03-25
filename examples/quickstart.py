@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 """
 lakesense quickstart — no API key required.
 
