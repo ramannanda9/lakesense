@@ -37,9 +37,22 @@ jobs:
       - name: Run tests
         run: pytest tests/unit/ -v --tb=short
 
-  test-spark:
-    name: Test Spark Provider
+  test-providers:
+    name: Test ${{ matrix.provider }} Provider
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: spark
+            extras: "spark,dev"
+            test_path: tests/providers/test_spark.py
+          - provider: anthropic
+            extras: "anthropic,dev"
+            test_path: tests/providers/test_llm_providers.py
+          - provider: openai
+            extras: "openai,dev"
+            test_path: tests/providers/test_llm_providers.py
     steps:
       - uses: actions/checkout@v4
 
@@ -50,10 +63,10 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[spark,dev]"
+        run: pip install -e ".[${{ matrix.extras }}]"
 
-      - name: Run Spark tests
-        run: pytest tests/providers/test_spark.py -v --tb=short
+      - name: Run ${{ matrix.provider }} tests
+        run: pytest ${{ matrix.test_path }} -v --tb=short
 
   build:
     name: Build distribution
