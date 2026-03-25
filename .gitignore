@@ -19,7 +19,7 @@ htmlcov/
 
 # driftsketch data dirs (from examples)
 driftsketch_quickstart_data/
-sketches/
+/sketches/
 driftsketch_data/
 
 # editors
