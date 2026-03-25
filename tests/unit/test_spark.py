@@ -51,7 +51,7 @@ def test_spark_provider_matches_pandas_provider(spark):
     # 2) Compute natively via local Pandas
     pandas_provider = PandasProvider()
     pandas_records = pandas_provider.sketch(
-        df=df,
+        data=df,
         dataset_id="ds_test",
         job_id="job_local",
         id_columns=["user_id"],
@@ -66,7 +66,7 @@ def test_spark_provider_matches_pandas_provider(spark):
     # 4) Compute heavily-distributed via SparkProvider
     spark_provider = SparkProvider()
     spark_records = spark_provider.sketch(
-        df=spark_df,
+        data=spark_df,
         dataset_id="ds_test",
         job_id="job_distributed",
         id_columns=["user_id"],
