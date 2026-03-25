@@ -68,7 +68,7 @@ class TestInterpretationResult:
     def test_backfill_round_trip(self):
         """executed_at and run_ts survive a to_dict/from_dict round-trip correctly."""
         data_ts = datetime(2024, 1, 7, tzinfo=timezone.utc)
-        exec_ts  = datetime(2024, 1, 14, tzinfo=timezone.utc)   # backfill ran a week later
+        exec_ts = datetime(2024, 1, 14, tzinfo=timezone.utc)  # backfill ran a week later
 
         r = InterpretationResult(
             dataset_id="ds",

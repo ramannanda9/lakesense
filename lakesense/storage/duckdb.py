@@ -38,7 +38,7 @@ class DuckDBBackend(ParquetBackend):
 
     def __init__(self, base_path: str | Path) -> None:
         super().__init__(base_path)
-        self._conn: Any = None   # duckdb.DuckDBPyConnection, typed as Any to avoid hard import
+        self._conn: Any = None  # duckdb.DuckDBPyConnection, typed as Any to avoid hard import
 
     def _get_conn(self) -> Any:
         if self._conn is None:
@@ -46,8 +46,7 @@ class DuckDBBackend(ParquetBackend):
                 import duckdb
             except ImportError as e:
                 raise ImportError(
-                    "DuckDBBackend requires duckdb. "
-                    "Install with: pip install lakesense[duckdb]"
+                    "DuckDBBackend requires duckdb. Install with: pip install lakesense[duckdb]"
                 ) from e
             self._conn = duckdb.connect()
             self._register_views()
@@ -57,7 +56,7 @@ class DuckDBBackend(ParquetBackend):
         """Register Parquet glob paths as DuckDB views, skipping missing directories."""
         conn = self._conn
         sketches_glob = str(self._sketches_root / "**" / "*.parquet")
-        interp_glob   = str(self._interp_root   / "**" / "*.parquet")
+        interp_glob = str(self._interp_root / "**" / "*.parquet")
 
         # sketches view — only register if files exist
         if list(self._sketches_root.rglob("*.parquet")):
@@ -128,7 +127,7 @@ class DuckDBBackend(ParquetBackend):
             ).df()
         """
         conn = self._get_conn()
-        self._register_views()   # refresh in case new files were written
+        self._register_views()  # refresh in case new files were written
         return conn.execute(sql)
 
     async def read_interpretation_history(
@@ -140,15 +139,19 @@ class DuckDBBackend(ParquetBackend):
         try:
             conn = self._get_conn()
             self._register_views()
-            rows = conn.execute(
-                """
+            rows = (
+                conn.execute(
+                    """
                 SELECT * FROM interpretations
                 WHERE dataset_id = ?
                 ORDER BY run_ts DESC
                 LIMIT ?
                 """,
-                [dataset_id, limit],
-            ).fetchdf().to_dict(orient="records")
+                    [dataset_id, limit],
+                )
+                .fetchdf()
+                .to_dict(orient="records")
+            )
             return [InterpretationResult.from_dict(r) for r in rows]
         except Exception:
             # fall back to Parquet scan if DuckDB fails (e.g. no files yet)

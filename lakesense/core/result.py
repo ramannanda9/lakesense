@@ -16,8 +16,8 @@ from typing import Any
 
 
 class Severity(str, Enum):
-    OK    = "ok"
-    WARN  = "warn"
+    OK = "ok"
+    WARN = "warn"
     ALERT = "alert"
 
     def is_actionable(self) -> bool:
@@ -30,19 +30,20 @@ class DriftSignals:
     Derived metrics computed by comparing current sketches to baseline.
     All fields are optional — populated based on which sketch types are configured.
     """
+
     # MinHash / Jaccard
-    jaccard_current:  float | None = None
+    jaccard_current: float | None = None
     jaccard_baseline: float | None = None
-    jaccard_delta:    float | None = None   # current - baseline; negative = more drift
+    jaccard_delta: float | None = None  # current - baseline; negative = more drift
 
     # HyperLogLog cardinality
-    cardinality_current:  int | None = None
+    cardinality_current: int | None = None
     cardinality_baseline: int | None = None
-    cardinality_ratio:    float | None = None  # current / baseline
+    cardinality_ratio: float | None = None  # current / baseline
 
     # KLL quantile shifts (p50, p90, p99)
     quantile_shifts: dict[str, float] = field(default_factory=dict)
-    
+
     # Kolmogorov-Smirnov boolean divergence test
     ks_test_divergent: bool | None = None
 
@@ -50,19 +51,19 @@ class DriftSignals:
     heavy_hitter_overlap: float | None = None
 
     # Raw scalar metrics
-    row_count:   int | None = None
-    null_rate:   float | None = None
-    null_delta:  float | None = None
+    row_count: int | None = None
+    null_rate: float | None = None
+    null_delta: float | None = None
 
     # Row count change (from profile)
-    row_count_delta:  float | None = None   # ratio: current / baseline
+    row_count_delta: float | None = None  # ratio: current / baseline
 
     # Null rate change per column (from profile) — worst across all columns
     max_null_rate_delta: float | None = None
 
     # Integer / float range violations (from profile)
-    range_min_delta:  float | None = None   # current_min - baseline_min
-    range_max_delta:  float | None = None   # current_max - baseline_max
+    range_min_delta: float | None = None  # current_min - baseline_min
+    range_max_delta: float | None = None  # current_max - baseline_max
 
     # Categorical distribution shift (from profile)
     # Proportion of top-N values that changed between baseline and current
@@ -76,7 +77,7 @@ class DriftSignals:
 
     # Columns missing vs baseline (schema drift)
     missing_columns: list[str] = field(default_factory=list)
-    new_columns:     list[str] = field(default_factory=list)
+    new_columns: list[str] = field(default_factory=list)
 
     def worst_signal(self) -> str:
         """Human-readable summary of the most significant drift signal."""
@@ -114,28 +115,29 @@ class InterpretationResult:
     Tier 2 plugins enrich:
         root_cause, affected_urns, owners, agent_trace, metadata
     """
+
     # Identity
-    dataset_id:      str
-    job_id:          str
+    dataset_id: str
+    job_id: str
     # data_interval_end — the period this data covers, used for partitioning + baseline
-    run_ts:          datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    run_ts: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     # executed_at — wall clock time the job ran; differs from run_ts during backfills
-    executed_at:     datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    executed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Tier 1 output — always populated after base interpretation
-    severity:        Severity = Severity.OK
-    summary:         str = ""
-    drift_signals:   DriftSignals = field(default_factory=DriftSignals)
+    severity: Severity = Severity.OK
+    summary: str = ""
+    drift_signals: DriftSignals = field(default_factory=DriftSignals)
     baseline_config: dict[str, Any] = field(default_factory=dict)
 
     # Tier 2 enrichment — populated by agent plugin
-    root_cause:      str | None = None
-    affected_urns:   list[str] = field(default_factory=list)
-    owners:          list[str] = field(default_factory=list)
-    agent_trace:     list[dict[str, Any]] = field(default_factory=list)
+    root_cause: str | None = None
+    affected_urns: list[str] = field(default_factory=list)
+    owners: list[str] = field(default_factory=list)
+    agent_trace: list[dict[str, Any]] = field(default_factory=list)
 
     # Sidecar metadata — plugins write here (e.g. slack_ts, jira_ticket)
-    metadata:        dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def is_actionable(self) -> bool:
         return self.severity.is_actionable()
@@ -146,21 +148,21 @@ class InterpretationResult:
     def to_dict(self) -> dict[str, Any]:
         """Flat dict suitable for Parquet/DuckDB row insertion."""
         return {
-            "dataset_id":        self.dataset_id,
-            "job_id":            self.job_id,
-            "run_ts":            self.run_ts.isoformat(),
-            "executed_at":       self.executed_at.isoformat(),
-            "severity":          self.severity.value,
-            "summary":           self.summary,
-            "jaccard_delta":     self.drift_signals.jaccard_delta,
+            "dataset_id": self.dataset_id,
+            "job_id": self.job_id,
+            "run_ts": self.run_ts.isoformat(),
+            "executed_at": self.executed_at.isoformat(),
+            "severity": self.severity.value,
+            "summary": self.summary,
+            "jaccard_delta": self.drift_signals.jaccard_delta,
             "cardinality_ratio": self.drift_signals.cardinality_ratio,
             "ks_test_divergent": self.drift_signals.ks_test_divergent,
-            "null_delta":        self.drift_signals.null_delta,
-            "root_cause":        self.root_cause,
-            "affected_urns":     self.affected_urns,
-            "owners":            self.owners,
-            "baseline_config":   self.baseline_config,
-            "metadata":          self.metadata,
+            "null_delta": self.drift_signals.null_delta,
+            "root_cause": self.root_cause,
+            "affected_urns": self.affected_urns,
+            "owners": self.owners,
+            "baseline_config": self.baseline_config,
+            "metadata": self.metadata,
         }
 
     @classmethod

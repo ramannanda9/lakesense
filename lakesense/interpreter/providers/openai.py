@@ -15,7 +15,7 @@ class OpenAIProvider(LLMProvider):
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY is required to initialize OpenAIProvider")
-        
+
         try:
             import openai
         except ImportError as e:
@@ -30,7 +30,7 @@ class OpenAIProvider(LLMProvider):
             max_tokens=400,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},
         )

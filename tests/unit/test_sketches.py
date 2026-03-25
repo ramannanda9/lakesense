@@ -20,6 +20,7 @@ class TestMinHash:
         blob1, m1 = compute_minhash(tokens)
         blob2, m2 = compute_minhash(tokens)
         from datasketches import theta_jaccard_similarity
+
         jaccard = theta_jaccard_similarity.jaccard(m1, m2)[1]
         assert jaccard == pytest.approx(1.0, abs=0.01)
 
@@ -27,6 +28,7 @@ class TestMinHash:
         blob1, m1 = compute_minhash(["apple", "banana", "cherry"])
         blob2, m2 = compute_minhash(["dog", "elephant", "fox"])
         from datasketches import theta_jaccard_similarity
+
         jaccard = theta_jaccard_similarity.jaccard(m1, m2)[1]
         assert jaccard < 0.2
 
@@ -86,6 +88,7 @@ class TestMerge:
 
     def test_build_baseline_rolling(self):
         from datetime import datetime, timedelta, timezone
+
         records = []
         base_ts = datetime.now(timezone.utc) - timedelta(days=3)
         for i in range(5):
@@ -107,7 +110,7 @@ class TestMerge:
     def test_ewma_weights_sum_to_one(self):
         weights = _ewma_weights(5, decay=0.9)
         assert sum(weights) == pytest.approx(1.0, abs=1e-9)
-        assert weights[-1] > weights[0]   # most recent has highest weight
+        assert weights[-1] > weights[0]  # most recent has highest weight
 
 
 class TestSignals:
@@ -119,9 +122,13 @@ class TestSignals:
         from datetime import datetime, timezone
 
         from lakesense.sketches.merge import BaselineSketch, BaselineStrategy
+
         baseline = BaselineSketch(
-            dataset_id="ds", column="col", sketch_type="minhash",
-            sketch_blob=blob, source_count=1,
+            dataset_id="ds",
+            column="col",
+            sketch_type="minhash",
+            sketch_blob=blob,
+            source_count=1,
             strategy=BaselineStrategy.ROLLING_WINDOW,
             merged_at=datetime.now(timezone.utc),
         )
@@ -139,6 +146,7 @@ class TestSignals:
         import random
 
         from lakesense.sketches.compute import compute_kll
+
         # 1. Base distribution: Normal(0, 1)
         base_vals = [random.normalvariate(0, 1) for _ in range(1000)]
         base_blob, _ = compute_kll(base_vals)
@@ -156,8 +164,11 @@ class TestSignals:
         from lakesense.sketches.merge import BaselineSketch, BaselineStrategy
 
         baseline = BaselineSketch(
-            dataset_id="ds", column="col", sketch_type="kll",
-            sketch_blob=base_blob, source_count=1,
+            dataset_id="ds",
+            column="col",
+            sketch_type="kll",
+            sketch_blob=base_blob,
+            source_count=1,
             strategy=BaselineStrategy.ROLLING_WINDOW,
             merged_at=datetime.now(timezone.utc),
         )

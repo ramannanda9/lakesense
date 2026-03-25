@@ -15,7 +15,7 @@ class AnthropicProvider(LLMProvider):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY is required to initialize AnthropicProvider")
-        
+
         try:
             import anthropic
         except ImportError as e:

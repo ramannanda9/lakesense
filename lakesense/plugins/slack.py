@@ -31,15 +31,15 @@ from lakesense.core.result import InterpretationResult, Severity
 logger = logging.getLogger(__name__)
 
 _SEVERITY_EMOJI = {
-    Severity.OK:    "✅",
-    Severity.WARN:  "⚠️",
+    Severity.OK: "✅",
+    Severity.WARN: "⚠️",
     Severity.ALERT: "🚨",
 }
 
 _SEVERITY_COLOR = {
-    Severity.OK:    "#2eb886",   # green
-    Severity.WARN:  "#daa038",   # amber
-    Severity.ALERT: "#cc0000",   # red
+    Severity.OK: "#2eb886",  # green
+    Severity.WARN: "#daa038",  # amber
+    Severity.ALERT: "#cc0000",  # red
 }
 
 
@@ -78,8 +78,7 @@ class SlackAlertPlugin(SketchPlugin):
             import httpx
         except ImportError as e:
             raise ImportError(
-                "SlackAlertPlugin requires httpx. "
-                "Install with: pip install lakesense[slack]"
+                "SlackAlertPlugin requires httpx. Install with: pip install lakesense[slack]"
             ) from e
 
         payload = self._build_payload(result)
@@ -109,8 +108,7 @@ class SlackAlertPlugin(SketchPlugin):
                 "text": {
                     "type": "plain_text",
                     "text": (
-                        f"{emoji} Data Quality "
-                        f"{result.severity.value.upper()}: {result.dataset_id}"
+                        f"{emoji} Data Quality {result.severity.value.upper()}: {result.dataset_id}"
                     ),
                 },
             },
@@ -128,32 +126,40 @@ class SlackAlertPlugin(SketchPlugin):
         ]
 
         if result.root_cause:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Root cause:*\n{result.root_cause}"},
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*Root cause:*\n{result.root_cause}"},
+                }
+            )
 
         if result.drift_signals.worst_signal() != "no signals":
-            blocks.append({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Drift signals:*\n`{result.drift_signals.worst_signal()}`",
-                },
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Drift signals:*\n`{result.drift_signals.worst_signal()}`",
+                    },
+                }
+            )
 
         if result.affected_urns:
             affected = "\n".join(f"• `{u}`" for u in result.affected_urns[:5])
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Affected datasets:*\n{affected}"},
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*Affected datasets:*\n{affected}"},
+                }
+            )
 
         if mentions:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Owners:* {mentions}"},
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*Owners:* {mentions}"},
+                }
+            )
 
         blocks.append({"type": "divider"})
 

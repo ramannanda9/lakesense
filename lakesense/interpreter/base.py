@@ -60,20 +60,23 @@ def _build_prompt(
         {"run_ts": r.run_ts.isoformat(), "severity": r.severity.value, "summary": r.summary}
         for r in history[-5:]  # last 5 runs for trend context
     ]
-    return json.dumps({
-        "dataset_id":      dataset_id,
-        "job_id":          job_id,
-        "baseline_config": baseline_config,
-        "drift_signals": {
-            "jaccard_delta":     signals.jaccard_delta,
-            "cardinality_ratio": signals.cardinality_ratio,
-            "quantile_shifts":   signals.quantile_shifts,
-            "null_rate":         signals.null_rate,
-            "null_delta":        signals.null_delta,
-            "worst_signal":      signals.worst_signal(),
+    return json.dumps(
+        {
+            "dataset_id": dataset_id,
+            "job_id": job_id,
+            "baseline_config": baseline_config,
+            "drift_signals": {
+                "jaccard_delta": signals.jaccard_delta,
+                "cardinality_ratio": signals.cardinality_ratio,
+                "quantile_shifts": signals.quantile_shifts,
+                "null_rate": signals.null_rate,
+                "null_delta": signals.null_delta,
+                "worst_signal": signals.worst_signal(),
+            },
+            "recent_history": history_summary,
         },
-        "recent_history": history_summary,
-    }, indent=2)
+        indent=2,
+    )
 
 
 def _parse_llm_response(text: str) -> tuple[Severity, str, str]:
@@ -109,15 +112,15 @@ async def base_interpret(
     Returns:
         InterpretationResult with severity, summary, and drift_signals populated.
     """
-    dataset_id  = job["dataset_id"]
-    job_id      = job["job_id"]
+    dataset_id = job["dataset_id"]
+    job_id = job["job_id"]
 
     # data_interval_end is the authoritative timestamp — the period this data covers.
     # For backfills, this is set to the historical date being reprocessed.
     # Falls back to wall clock only for ad-hoc runs with no explicit interval.
     # executed_at captures when the job actually ran (metadata only).
     executed_at = datetime.now(timezone.utc)
-    run_ts      = job.get("data_interval_end") or executed_at
+    run_ts = job.get("data_interval_end") or executed_at
 
     # --- Step 1: load current sketch records ---
     current_records: list[SketchRecord] = job.get("sketch_records", [])
@@ -156,7 +159,7 @@ async def base_interpret(
     all_signals: list[DriftSignals] = []
 
     # split records by type
-    sketch_records  = [r for r in current_records if r.sketch_type != "profile"]
+    sketch_records = [r for r in current_records if r.sketch_type != "profile"]
     profile_records = [r for r in current_records if r.sketch_type == "profile"]
 
     for rec in sketch_records:
@@ -176,7 +179,7 @@ async def base_interpret(
     if profile_records:
         hist_profile_records = [r for r in historical if r.sketch_type == "profile"]
         if hist_profile_records:
-            current_profiles  = [sketch_record_to_profile(r) for r in profile_records]
+            current_profiles = [sketch_record_to_profile(r) for r in profile_records]
             baseline_profiles = [sketch_record_to_profile(r) for r in hist_profile_records]
             profile_signals = compute_profile_signals(current_profiles, baseline_profiles)
             all_signals.append(profile_signals)
@@ -205,9 +208,11 @@ async def base_interpret(
         # Auto-resolve from environment if absent
         if "ANTHROPIC_API_KEY" in os.environ:
             from lakesense.interpreter.providers.anthropic import AnthropicProvider
+
             llm_provider = AnthropicProvider()
         elif "OPENAI_API_KEY" in os.environ:
             from lakesense.interpreter.providers.openai import OpenAIProvider
+
             llm_provider = OpenAIProvider()
 
     if not llm_provider:
@@ -233,7 +238,6 @@ async def base_interpret(
         severity = _heuristic_severity(agg_signals)
         summary = f"LLM parsing error fallback: {agg_signals.worst_signal()}"
         reasoning = str(e)
-
 
     return InterpretationResult(
         dataset_id=dataset_id,

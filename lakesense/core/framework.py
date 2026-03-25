@@ -80,10 +80,12 @@ class SketchFramework:
         plugins = self._plugins
         if not any(p.__class__.__name__ == "StoragePlugin" for p in plugins):
             from lakesense.plugins.store import StoragePlugin
+
             plugins = [*plugins, StoragePlugin(storage=self._storage)]
 
         # Bind any unbound StoragePlugins to our storage backend
         from lakesense.plugins.store import StoragePlugin as SP
+
         for plugin in plugins:
             if isinstance(plugin, SP) and plugin._storage is None:
                 plugin.bind(self._storage)
@@ -129,4 +131,5 @@ class SketchFramework:
         Imported lazily to keep the framework decoupled from interpreter internals.
         """
         from lakesense.interpreter.base import base_interpret
+
         return await base_interpret(job, storage=self._storage)

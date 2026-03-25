@@ -39,12 +39,14 @@ def test_spark_provider_matches_pandas_provider(spark):
     the same mathematical SketchRecords as the single-machine PandasProvider execution.
     """
     # 1) Generate some dummy data
-    df = pd.DataFrame({
-        "user_id": [f"u_{i}" for i in range(100)],
-        "age": [i % 50 for i in range(100)],
-        "category": ["A" if i % 2 == 0 else "B" for i in range(100)],
-        "is_active": [True for _ in range(100)],
-    })
+    df = pd.DataFrame(
+        {
+            "user_id": [f"u_{i}" for i in range(100)],
+            "age": [i % 50 for i in range(100)],
+            "category": ["A" if i % 2 == 0 else "B" for i in range(100)],
+            "is_active": [True for _ in range(100)],
+        }
+    )
 
     # 2) Compute natively via local Pandas
     pandas_provider = PandasProvider()
@@ -86,24 +88,28 @@ def test_spark_provider_matches_pandas_provider(spark):
         assert s_rec.num_rows == p_rec.num_rows
         assert s_rec.null_count == p_rec.null_count
         assert s_rec.run_ts == p_rec.run_ts
-        
+
         # We can't immediately assert raw blob bytes are identical because sketches sometimes reorder
         # memory blocks, BUT we can assert their evaluated abstractions (signals) are perfectly zero-drift!
         if p_rec.sketch_type == "profile":
             import json
+
             p_dict = json.loads(p_rec.sketch_blob.decode())
             s_dict = json.loads(s_rec.sketch_blob.decode())
-            # Spark mapInPandas row order per partition means Top-N distributions might shuffle if values tie, 
+            # Spark mapInPandas row order per partition means Top-N distributions might shuffle if values tie,
             # but the numerical and scalar values are exact.
             assert p_dict["row_count"] == s_dict["row_count"]
             assert p_dict["numeric_mean"] == pytest.approx(s_dict["numeric_mean"] or 0)
         else:
-            # For HLL, KLL, and Theta, if we compute signals between the pandas version and spark version, 
+            # For HLL, KLL, and Theta, if we compute signals between the pandas version and spark version,
             # the Jaccard, Cardinality Ratio, and Quantile Shifts must be EXACTLY identical (zero drift).
             from lakesense.sketches.merge import BaselineConfig, BaselineStrategy
+
             baseline = build_baseline(
                 records=[p_rec],
-                config=BaselineConfig("ds_test", strategy=BaselineStrategy.ROLLING_WINDOW, window_days=1),
+                config=BaselineConfig(
+                    "ds_test", strategy=BaselineStrategy.ROLLING_WINDOW, window_days=1
+                ),
                 sketch_type=p_rec.sketch_type,
                 column=p_rec.column,
             )
@@ -115,4 +121,3 @@ def test_spark_provider_matches_pandas_provider(spark):
                 assert signals.jaccard_delta == pytest.approx(0.0, abs=0.01)
             elif p_rec.sketch_type == "kll":
                 assert signals.quantile_shifts["p50"] == pytest.approx(0.0, abs=0.01)
-

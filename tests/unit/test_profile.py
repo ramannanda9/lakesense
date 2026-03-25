@@ -28,7 +28,7 @@ class TestProfileColumn:
         assert p.numeric_max == pytest.approx(5.0)
         assert p.numeric_mean == pytest.approx(3.0)
         assert p.numeric_zeros == 0
-        assert p.int_negative_count is None   # float, not int
+        assert p.int_negative_count is None  # float, not int
 
     def test_integer_range(self):
         s = pd.Series([0, 1, -5, 3, 10], dtype="int64", name="count")
@@ -82,12 +82,14 @@ class TestProfileColumn:
 
 class TestProfileDataframe:
     def test_profiles_all_columns(self):
-        df = pd.DataFrame({
-            "user_id":   [1, 2, 3, 4, 5],
-            "score":     [0.1, 0.9, None, 0.5, 0.7],
-            "label":     ["a", "b", "a", "c", "a"],
-            "is_active": [True, False, True, True, None],
-        })
+        df = pd.DataFrame(
+            {
+                "user_id": [1, 2, 3, 4, 5],
+                "score": [0.1, 0.9, None, 0.5, 0.7],
+                "label": ["a", "b", "a", "c", "a"],
+                "is_active": [True, False, True, True, None],
+            }
+        )
         profiles = profile_dataframe(df)
         assert len(profiles) == 4
         cols = [p.column for p in profiles]
@@ -120,45 +122,53 @@ class TestProfileDataframe:
 
 
 class TestProfileSignals:
-    def _make_profiles(self, null_rate=0.0, bool_true=0.6,
-                       top_vals=None, neg_count=0) -> list[ColumnProfile]:
+    def _make_profiles(
+        self, null_rate=0.0, bool_true=0.6, top_vals=None, neg_count=0
+    ) -> list[ColumnProfile]:
         n = 100
         return [
             ColumnProfile(
-                column="score", dtype="float64",
-                row_count=n, null_count=int(n * null_rate),
+                column="score",
+                dtype="float64",
+                row_count=n,
+                null_count=int(n * null_rate),
                 numeric_min=-1.0 if neg_count > 0 else 0.0,
-                numeric_max=10.0, numeric_mean=5.0,
+                numeric_max=10.0,
+                numeric_mean=5.0,
                 int_negative_count=neg_count,
             ),
             ColumnProfile(
-                column="is_active", dtype="bool",
-                row_count=n, null_count=0,
+                column="is_active",
+                dtype="bool",
+                row_count=n,
+                null_count=0,
                 bool_true_count=int(n * bool_true),
                 bool_false_count=int(n * (1 - bool_true)),
             ),
             ColumnProfile(
-                column="status", dtype="object",
-                row_count=n, null_count=0,
+                column="status",
+                dtype="object",
+                row_count=n,
+                null_count=0,
                 top_values=top_vals or [("active", 80), ("inactive", 20)],
             ),
         ]
 
     def test_null_rate_delta(self):
         baseline = self._make_profiles(null_rate=0.02)
-        current  = self._make_profiles(null_rate=0.40)   # spike
+        current = self._make_profiles(null_rate=0.40)  # spike
         signals = compute_profile_signals(current, baseline)
         assert signals.max_null_rate_delta == pytest.approx(0.38, abs=0.01)
 
     def test_bool_rate_delta(self):
         baseline = self._make_profiles(bool_true=0.60)
-        current  = self._make_profiles(bool_true=0.05)   # nearly all False
+        current = self._make_profiles(bool_true=0.05)  # nearly all False
         signals = compute_profile_signals(current, baseline)
         assert signals.bool_true_rate_delta == pytest.approx(0.55, abs=0.01)
 
     def test_categorical_shift(self):
         baseline = self._make_profiles(top_vals=[("active", 80), ("inactive", 20)])
-        current  = self._make_profiles(top_vals=[("unknown", 90), ("error", 10)])
+        current = self._make_profiles(top_vals=[("unknown", 90), ("error", 10)])
         signals = compute_profile_signals(current, baseline)
         assert signals.categorical_top_shift == pytest.approx(1.0, abs=0.01)
 
@@ -171,16 +181,15 @@ class TestProfileSignals:
 
     def test_new_column_detected(self):
         baseline = self._make_profiles()
-        current  = self._make_profiles() + [
-            ColumnProfile(column="new_feature", dtype="float64",
-                         row_count=100, null_count=0)
+        current = self._make_profiles() + [
+            ColumnProfile(column="new_feature", dtype="float64", row_count=100, null_count=0)
         ]
         signals = compute_profile_signals(current, baseline)
         assert "new_feature" in signals.new_columns
 
     def test_integer_negative_spike(self):
         baseline = self._make_profiles(neg_count=0)
-        current  = self._make_profiles(neg_count=15)   # negatives appeared
+        current = self._make_profiles(neg_count=15)  # negatives appeared
         signals = compute_profile_signals(current, baseline)
         assert signals.range_min_delta is not None
         assert signals.range_min_delta < 0

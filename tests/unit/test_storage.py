@@ -1,6 +1,5 @@
 """Unit tests for storage backends."""
 
-
 import pytest
 
 from lakesense.core.result import DriftSignals, InterpretationResult, Severity
@@ -92,6 +91,7 @@ class TestDuckDBBackend:
     def backend(self, tmp_path):
         pytest.importorskip("duckdb")
         from lakesense.storage.duckdb import DuckDBBackend
+
         return DuckDBBackend(tmp_path)
 
     @pytest.mark.asyncio
