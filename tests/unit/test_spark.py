@@ -1,17 +1,19 @@
 """Unit tests for the scalable Spark map-reduce sketching layer."""
+# ruff: noqa: E402, E501
 
 import os
-import pytest
-import pandas as pd
 from datetime import datetime, timezone
+
+import pandas as pd
+import pytest
 
 # We only run Spark tests if PySpark is available
 pyspark = pytest.importorskip("pyspark")
 from pyspark.sql import SparkSession
 
+from lakesense.sketches.merge import build_baseline
 from lakesense.sketches.providers.pandas import PandasProvider
 from lakesense.sketches.providers.spark import SparkProvider
-from lakesense.sketches.merge import build_baseline
 from lakesense.sketches.signals import compute_signals
 
 

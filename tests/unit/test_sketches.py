@@ -136,8 +136,9 @@ class TestSignals:
         assert agg.jaccard_delta == -0.5
 
     def test_ks_distribution_shift(self):
-        from lakesense.sketches.compute import compute_kll
         import random
+
+        from lakesense.sketches.compute import compute_kll
         # 1. Base distribution: Normal(0, 1)
         base_vals = [random.normalvariate(0, 1) for _ in range(1000)]
         base_blob, _ = compute_kll(base_vals)
@@ -151,6 +152,7 @@ class TestSignals:
         cur_blob2, _ = compute_kll(cur_vals2)
 
         from datetime import datetime, timezone
+
         from lakesense.sketches.merge import BaselineSketch, BaselineStrategy
 
         baseline = BaselineSketch(

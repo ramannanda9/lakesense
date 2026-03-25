@@ -1,6 +1,6 @@
-import pytest
 from lakesense.core.result import DriftSignals, Severity
 from lakesense.interpreter.base import _heuristic_severity
+
 
 def test_missing_columns_alert():
     sig = DriftSignals(missing_columns=["user_id", "email"])

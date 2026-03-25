@@ -1,7 +1,9 @@
+
 import pytest
-import os
+
 from lakesense.interpreter.providers.anthropic import AnthropicProvider
 from lakesense.interpreter.providers.openai import OpenAIProvider
+
 
 def test_anthropic_instantiation(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-anthropic")
