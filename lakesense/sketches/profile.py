@@ -139,7 +139,7 @@ class ColumnProfile:
         self.numeric_max = _merge_max(self.numeric_max, other.numeric_max)
 
         # Weighted Numeric Mean
-        if n_total > 0:
+        if n_total > 0 and (self.numeric_mean is not None or other.numeric_mean is not None):
             s_mean = self.numeric_mean or 0.0
             o_mean = other.numeric_mean or 0.0
             self.numeric_mean = (s_mean * n_self + o_mean * n_other) / n_total
@@ -165,7 +165,7 @@ class ColumnProfile:
         if self.str_max_len is not None:
             self.str_max_len = int(self.str_max_len)
 
-        if n_total > 0:
+        if n_total > 0 and (self.str_mean_len is not None or other.str_mean_len is not None):
             s_len = self.str_mean_len or 0.0
             o_len = other.str_mean_len or 0.0
             self.str_mean_len = (s_len * n_self + o_len * n_other) / n_total
