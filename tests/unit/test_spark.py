@@ -99,7 +99,12 @@ def test_spark_provider_matches_pandas_provider(spark):
             # Spark mapInPandas row order per partition means Top-N distributions might shuffle if values tie,
             # but the numerical and scalar values are exact.
             assert p_dict["row_count"] == s_dict["row_count"]
-            assert p_dict["numeric_mean"] == pytest.approx(s_dict["numeric_mean"] or 0)
+            p_mean = p_dict.get("numeric_mean")
+            s_mean = s_dict.get("numeric_mean")
+            if p_mean is not None:
+                assert p_mean == pytest.approx(s_mean or 0)
+            else:
+                assert s_mean is None
         else:
             # For HLL, KLL, and Theta, if we compute signals between the pandas version and spark version,
             # the Jaccard, Cardinality Ratio, and Quantile Shifts must be EXACTLY identical (zero drift).
