@@ -150,10 +150,19 @@ class SparkProvider(SketchProvider):
                     base_sk.merge(kll_doubles_sketch.deserialize(r.sketch_blob))
                 blob = base_sk.serialize()
             elif stype == "profile":
-                # Profiles currently use JSON scalar summaries which merge manually.
-                # For production distributed profiling, frequent_strings_sketch
-                # arrays should be passed directly.
-                pass
+                import json
+
+                from lakesense.sketches.profile import ColumnProfile
+
+                # Deserialize first record to start the base profile
+                base_prof = ColumnProfile.from_dict(json.loads(recs[0].sketch_blob.decode("utf-8")))
+
+                # Merge all subsequent partition profiles
+                for r in recs[1:]:
+                    other_prof = ColumnProfile.from_dict(json.loads(r.sketch_blob.decode("utf-8")))
+                    base_prof.merge(other_prof)
+
+                blob = json.dumps(base_prof.to_dict()).encode("utf-8")
 
             merged.append(
                 SketchRecord(

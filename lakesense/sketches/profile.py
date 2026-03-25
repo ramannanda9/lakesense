@@ -103,6 +103,86 @@ class ColumnProfile:
             "bool_false_count": self.bool_false_count,
         }
 
+    def merge(self, other: ColumnProfile) -> None:
+        """Merge another profile into this one (inplace)."""
+        if self.column != other.column:
+            raise ValueError(
+                f"cannot merge profiles for different columns: {self.column} vs {other.column}"
+            )
+
+        # Update n_val (non-null observations) for weighted means
+        n_self = self.row_count - self.null_count
+        n_other = other.row_count - other.null_count
+        n_total = n_self + n_other
+
+        # Counts
+        self.row_count += other.row_count
+        self.null_count += other.null_count
+        self.distinct_count = 0  # Still delegated to HLL
+
+        # Numeric extremums
+        def _merge_min(a: float | None, b: float | None) -> float | None:
+            if a is None:
+                return b
+            if b is None:
+                return a
+            return min(a, b)
+
+        def _merge_max(a: float | None, b: float | None) -> float | None:
+            if a is None:
+                return b
+            if b is None:
+                return a
+            return max(a, b)
+
+        self.numeric_min = _merge_min(self.numeric_min, other.numeric_min)
+        self.numeric_max = _merge_max(self.numeric_max, other.numeric_max)
+
+        # Weighted Numeric Mean
+        if n_total > 0:
+            s_mean = self.numeric_mean or 0.0
+            o_mean = other.numeric_mean or 0.0
+            self.numeric_mean = (s_mean * n_self + o_mean * n_other) / n_total
+
+        # Other numeric counts
+        if other.numeric_zeros is not None:
+            self.numeric_zeros = (self.numeric_zeros or 0) + other.numeric_zeros
+        if other.int_negative_count is not None:
+            self.int_negative_count = (self.int_negative_count or 0) + other.int_negative_count
+
+        # Booleans
+        if other.bool_true_count is not None:
+            self.bool_true_count = (self.bool_true_count or 0) + other.bool_true_count
+        if other.bool_false_count is not None:
+            self.bool_false_count = (self.bool_false_count or 0) + other.bool_false_count
+
+        # Strings
+        self.str_min_len = _merge_min(self.str_min_len, other.str_min_len)
+        if self.str_min_len is not None:
+            self.str_min_len = int(self.str_min_len)
+
+        self.str_max_len = _merge_max(self.str_max_len, other.str_max_len)
+        if self.str_max_len is not None:
+            self.str_max_len = int(self.str_max_len)
+
+        if n_total > 0:
+            s_len = self.str_mean_len or 0.0
+            o_len = other.str_mean_len or 0.0
+            self.str_mean_len = (s_len * n_self + o_len * n_other) / n_total
+        if other.str_empty_count is not None:
+            self.str_empty_count = (self.str_empty_count or 0) + other.str_empty_count
+
+        # Top Values (Approximate merge of Top N)
+        if other.top_values:
+            combined = {}
+            for val, count in self.top_values:
+                combined[val] = combined.get(val, 0) + count
+            for val, count in other.top_values:
+                combined[val] = combined.get(val, 0) + count
+
+            merged_top = sorted(combined.items(), key=lambda x: x[1], reverse=True)
+            self.top_values = merged_top[: self.top_n]
+
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> ColumnProfile:
         top = d.get("top_values") or []
