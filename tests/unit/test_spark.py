@@ -1,5 +1,5 @@
 """Unit tests for the scalable Spark map-reduce sketching layer."""
-# ruff: noqa: E402, E501
+# ruff: noqa: E402, E501, I001
 
 import os
 from datetime import datetime, timezone

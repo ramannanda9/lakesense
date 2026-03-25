@@ -1,4 +1,5 @@
 """Unit tests for lakesense.sketches"""
+# ruff: noqa: I001
 
 import pytest
 

@@ -1,4 +1,5 @@
 """Unit tests for storage backends."""
+# ruff: noqa: I001
 
 import pytest
 
