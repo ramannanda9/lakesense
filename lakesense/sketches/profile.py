@@ -106,9 +106,7 @@ class ColumnProfile:
     def merge(self, other: ColumnProfile) -> None:
         """Merge another profile into this one (inplace)."""
         if self.column != other.column:
-            raise ValueError(
-                f"cannot merge profiles for different columns: {self.column} vs {other.column}"
-            )
+            raise ValueError(f"cannot merge profiles for different columns: {self.column} vs {other.column}")
 
         # Update n_val (non-null observations) for weighted means
         n_self = self.row_count - self.null_count
@@ -210,9 +208,7 @@ class ColumnProfile:
         )
 
 
-def profile_column(
-    values: Iterable[Any], col_name: str, dtype_name: str = "unknown", top_n: int = 10
-) -> ColumnProfile:
+def profile_column(values: Iterable[Any], col_name: str, dtype_name: str = "unknown", top_n: int = 10) -> ColumnProfile:
     """
     Compute a ColumnProfile for an iterable of values in a single pass (O(1) memory).
     Auto-detects values and populates the appropriate fields dynamically.

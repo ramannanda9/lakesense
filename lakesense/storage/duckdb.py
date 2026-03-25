@@ -45,9 +45,7 @@ class DuckDBBackend(ParquetBackend):
             try:
                 import duckdb
             except ImportError as e:
-                raise ImportError(
-                    "DuckDBBackend requires duckdb. Install with: pip install lakesense[duckdb]"
-                ) from e
+                raise ImportError("DuckDBBackend requires duckdb. Install with: pip install lakesense[duckdb]") from e
             self._conn = duckdb.connect()
             self._register_views()
         return self._conn

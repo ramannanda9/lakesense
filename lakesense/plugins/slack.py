@@ -77,9 +77,7 @@ class SlackAlertPlugin(SketchPlugin):
         try:
             import httpx
         except ImportError as e:
-            raise ImportError(
-                "SlackAlertPlugin requires httpx. Install with: pip install lakesense[slack]"
-            ) from e
+            raise ImportError("SlackAlertPlugin requires httpx. Install with: pip install lakesense[slack]") from e
 
         payload = self._build_payload(result)
         async with httpx.AsyncClient() as client:
@@ -107,9 +105,7 @@ class SlackAlertPlugin(SketchPlugin):
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": (
-                        f"{emoji} Data Quality {result.severity.value.upper()}: {result.dataset_id}"
-                    ),
+                    "text": (f"{emoji} Data Quality {result.severity.value.upper()}: {result.dataset_id}"),
                 },
             },
             {

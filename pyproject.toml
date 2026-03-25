@@ -37,7 +37,6 @@ spark    = ["pyspark>=3.5.0", "pandas>=2.0.0"]
 anthropic = ["anthropic>=0.25.0"]
 openai    = ["openai>=1.0.0"]
 dev      = [
-    "lakesense[duckdb]",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.4",
@@ -53,7 +52,7 @@ Documentation = "https://github.com/yourusername/lakesense/tree/main/docs"
 Issues = "https://github.com/yourusername/lakesense/issues"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]

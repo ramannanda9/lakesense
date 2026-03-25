@@ -217,11 +217,7 @@ def compute_profile_signals(
             cat_shifts.append(1.0 - overlap)  # 0 = identical, 1 = no overlap
 
         # integer range violations — negatives appeared where there were none
-        if (
-            cur.int_negative_count is not None
-            and base.int_negative_count == 0
-            and cur.int_negative_count > 0
-        ):
+        if cur.int_negative_count is not None and base.int_negative_count == 0 and cur.int_negative_count > 0:
             signals.range_min_delta = float(cur.numeric_min or 0)
 
     if null_rate_deltas:

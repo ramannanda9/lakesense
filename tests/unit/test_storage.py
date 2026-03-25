@@ -101,8 +101,7 @@ class TestDuckDBBackend:
             await backend.write_interpretation(_interp_result(severity=sev))
 
         df = backend.query(
-            "SELECT severity, COUNT(*) as n FROM interpretations "
-            "GROUP BY severity ORDER BY severity"
+            "SELECT severity, COUNT(*) as n FROM interpretations GROUP BY severity ORDER BY severity"
         ).df()
         assert len(df) == 3
 

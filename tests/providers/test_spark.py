@@ -101,9 +101,7 @@ def test_spark_provider_matches_pandas_provider(spark):
             assert p_dict["row_count"] == s_dict["row_count"]
             p_mean = p_dict.get("numeric_mean")
             s_mean = s_dict.get("numeric_mean")
-            assert (p_mean is None) == (s_mean is None), (
-                f"Mean presence mismatch: {p_mean} vs {s_mean}"
-            )
+            assert (p_mean is None) == (s_mean is None), f"Mean presence mismatch: {p_mean} vs {s_mean}"
             if p_mean is not None:
                 assert p_mean == pytest.approx(s_mean or 0.0)
         else:
@@ -113,9 +111,7 @@ def test_spark_provider_matches_pandas_provider(spark):
 
             baseline = build_baseline(
                 records=[p_rec],
-                config=BaselineConfig(
-                    "ds_test", strategy=BaselineStrategy.ROLLING_WINDOW, window_days=3650
-                ),
+                config=BaselineConfig("ds_test", strategy=BaselineStrategy.ROLLING_WINDOW, window_days=3650),
                 sketch_type=p_rec.sketch_type,
                 column=p_rec.column,
             )

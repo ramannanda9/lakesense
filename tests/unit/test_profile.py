@@ -123,9 +123,7 @@ class TestProfileDataframe:
 
 
 class TestProfileSignals:
-    def _make_profiles(
-        self, null_rate=0.0, bool_true=0.6, top_vals=None, neg_count=0
-    ) -> list[ColumnProfile]:
+    def _make_profiles(self, null_rate=0.0, bool_true=0.6, top_vals=None, neg_count=0) -> list[ColumnProfile]:
         n = 100
         return [
             ColumnProfile(

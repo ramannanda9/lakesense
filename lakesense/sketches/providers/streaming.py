@@ -73,9 +73,7 @@ class StreamingProvider(SketchProvider):
         for col in id_columns or []:
             if col in data:
                 blob, _ = compute_hll(data[col])
-                records.append(
-                    _base(col, "hll", blob, num_rows=0, null_count=0, sketch_config={"p": 12})
-                )
+                records.append(_base(col, "hll", blob, num_rows=0, null_count=0, sketch_config={"p": 12}))
 
         # KLL
         for col in numeric_columns or []:

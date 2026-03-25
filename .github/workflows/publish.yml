@@ -1,10 +1,8 @@
-name: CI
+name: Publish to PyPI
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags: ["v*"]
 
 jobs:
   test:
@@ -30,35 +28,16 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
-      - name: Type check (mypy)
-        run: mypy lakesense/
-        continue-on-error: true   # warnings only until v0.2
-
       - name: Run tests
         run: pytest tests/unit/ -v --tb=short
 
-  test-spark:
-    name: Test Spark Provider
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dependencies
-        run: pip install -e ".[spark,dev]"
-
-      - name: Run Spark tests
-        run: pytest tests/providers/test_spark.py -v --tb=short
-
-  build:
-    name: Build distribution
+  publish:
+    name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: test
+    environment: pypi
+    permissions:
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -75,8 +54,5 @@ jobs:
       - name: Build wheel and sdist
         run: python -m build
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
