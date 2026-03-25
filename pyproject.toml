@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lakesense"
+version = "0.1.0"
+description = "Intelligent ML data observability for the lakehouse — sketch-based profiling with LLM interpretation"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+keywords = ["mlops", "data-quality", "observability", "datasketch", "apache-iceberg", "llm", "lakehouse"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "datasketches>=4.0.0",
+    "pyarrow>=14.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+duckdb   = ["duckdb>=0.10.0"]
+iceberg  = ["pyiceberg>=0.6.0"]
+datahub  = ["acryl-datahub>=0.12.0"]
+slack    = ["httpx>=0.27.0"]
+pandas   = ["pandas>=2.0.0"]
+spark    = ["pyspark>=3.5.0", "pandas>=2.0.0"]
+anthropic = ["anthropic>=0.25.0"]
+openai    = ["openai>=1.0.0"]
+dev      = [
+    "lakesense[duckdb]",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.9",
+    "hypothesis>=6.0",
+]
+all = ["lakesense[duckdb,iceberg,datahub,slack,pandas,spark,anthropic,openai]"]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/lakesense"
+Documentation = "https://github.com/yourusername/lakesense/tree/main/docs"
+Issues = "https://github.com/yourusername/lakesense/issues"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
