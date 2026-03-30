@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lakesense"
-version = "0.1.0"
+version = "0.2.0"
 description = "Intelligent ML data observability for the lakehouse — sketch-based profiling with LLM interpretation"
 readme = "README.md"
 license = { text = "Apache-2.0" }
