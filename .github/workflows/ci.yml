@@ -69,9 +69,8 @@ jobs:
         run: pytest ${{ matrix.test_path }} -v --tb=short
 
   benchmark:
-    name: Benchmark (main only)
+    name: Benchmark
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: test
 
     steps:
@@ -106,8 +105,9 @@ jobs:
           tool: pytest
           output-file-path: benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
-          comment-on-alert: false
+          auto-push: ${{ github.ref == 'refs/heads/main' }}
+          comment-on-alert: true
+          alert-threshold: "200%"
           fail-on-alert: false
           benchmark-data-dir-path: dev/bench
 
