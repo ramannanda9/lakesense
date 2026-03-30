@@ -56,8 +56,12 @@ records = provider.sketch(
     numeric_columns=["session_count", "revenue"],
 )
 
-# 2. Run the interpretation pipeline
-framework = SketchFramework(storage=ParquetBackend("./sketches"))
+# 2. Persist sketches for baseline building
+storage = ParquetBackend("./sketches")
+asyncio.run(storage.write_sketches(records))
+
+# 3. Run the interpretation pipeline
+framework = SketchFramework(storage=storage)
 
 result = asyncio.run(framework.run({
     "dataset_id": "user_features",
