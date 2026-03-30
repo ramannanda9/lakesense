@@ -15,8 +15,9 @@ investigate and explain drift signals — with pluggable alerting and storage.
 ## Why lakesense?
 
 Existing tools stop at drift *detection* — they tell you a number changed.
-lakesense adds an **interpretation layer**: a two-tier pipeline that runs a fast LLM
-assessment on every job, and fires an investigative agent only when something is actually wrong.
+lakesense adds an **interpretation layer**: a two-tier pipeline that runs heuristic rules
+on every job, escalates to an LLM for nuanced interpretation on warn/alert, and fires an
+investigative agent only when something is actually wrong.
 
 Key properties:
 
