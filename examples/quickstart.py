@@ -13,6 +13,7 @@ For LLM interpretation, set ANTHROPIC_API_KEY in your environment.
 """
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -41,7 +42,7 @@ def make_dataset(n: int = 1000, drift: bool = False) -> pd.DataFrame:
     )
 
 
-def sketch_df(df: pd.DataFrame, dataset_id: str, job_id: str):
+def sketch_df(df: pd.DataFrame, dataset_id: str, job_id: str, run_ts: datetime):
     """Pre-compute sketches and profiles from a DataFrame."""
     provider = PandasProvider()
     return provider.sketch(
@@ -51,6 +52,7 @@ def sketch_df(df: pd.DataFrame, dataset_id: str, job_id: str):
         text_columns=["description"],
         id_columns=["user_id"],
         numeric_columns=["session_count", "revenue"],
+        run_ts=run_ts,
     )
 
 
@@ -69,16 +71,22 @@ async def main():
     print("=== lakesense quickstart ===\n")
 
     # --- Simulate 5 normal runs to build a baseline ---
+    # run_ts simulates daily runs so the baseline window has distinct timestamps.
+    # In production, run_ts is the data_interval_end of your pipeline (e.g. Airflow).
+    base_ts = datetime.now(timezone.utc) - timedelta(days=6)
+
     print("Running 5 baseline jobs...")
     for i in range(5):
+        run_ts = base_ts + timedelta(days=i)
         df = make_dataset(drift=False)
-        records = sketch_df(df, "user_features", f"train_job_{i}")
+        records = sketch_df(df, "user_features", f"train_job_{i}", run_ts=run_ts)
         await storage.write_sketches(records)
         result = await framework.run(
             {
                 "dataset_id": "user_features",
                 "job_id": f"train_job_{i}",
                 "sketch_records": records,
+                "data_interval_end": run_ts,
                 "baseline_config": BaselineConfig(
                     dataset_id="user_features",
                     strategy=BaselineStrategy.ROLLING_WINDOW,
@@ -90,14 +98,16 @@ async def main():
 
     # --- Simulate a drifted run ---
     print("\nRunning 1 drifted job (distribution shift)...")
+    drift_ts = base_ts + timedelta(days=5)
     df_drift = make_dataset(drift=True)
-    records = sketch_df(df_drift, "user_features", "train_job_drifted")
+    records = sketch_df(df_drift, "user_features", "train_job_drifted", run_ts=drift_ts)
     await storage.write_sketches(records)
     result = await framework.run(
         {
             "dataset_id": "user_features",
             "job_id": "train_job_drifted",
             "sketch_records": records,
+            "data_interval_end": drift_ts,
             "baseline_config": BaselineConfig(
                 dataset_id="user_features",
                 strategy=BaselineStrategy.ROLLING_WINDOW,

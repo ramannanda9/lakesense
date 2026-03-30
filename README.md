@@ -74,6 +74,11 @@ print(result.severity)   # ok | warn | alert
 print(result.summary)    # "Jaccard similarity dropped 34% vs 7-day baseline..."
 ```
 
+> **Note:** `run_ts` on sketches and `data_interval_end` in the job dict control baseline
+> window matching. In production, set these to your pipeline's data interval end (e.g.,
+> Airflow's `data_interval_end`). The baseline query uses `run_ts` as the upper bound —
+> runs with identical timestamps won't see each other as history.
+
 Heuristic rules run on every job (free, instant). Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 to add LLM-powered interpretation — the LLM is only invoked when heuristics flag warn/alert,
 so healthy runs never incur an API call.
