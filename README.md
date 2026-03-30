@@ -15,8 +15,9 @@ investigate and explain drift signals — with pluggable alerting and storage.
 ## Why lakesense?
 
 Existing tools stop at drift *detection* — they tell you a number changed.
-lakesense adds an **interpretation layer**: a two-tier pipeline that runs a fast LLM
-assessment on every job, and fires an investigative agent only when something is actually wrong.
+lakesense adds an **interpretation layer**: a two-tier pipeline that runs heuristic rules
+on every job, escalates to an LLM for nuanced interpretation on warn/alert, and fires an
+investigative agent only when something is actually wrong.
 
 Key properties:
 
@@ -38,11 +39,17 @@ pip install lakesense
 
 ```python
 import asyncio
+from datetime import datetime, timezone
 import pandas as pd
 from lakesense.core import SketchFramework
 from lakesense.storage.parquet import ParquetBackend
 from lakesense.sketches.providers.pandas import PandasProvider
 from lakesense.sketches.merge import BaselineConfig
+
+# run_ts = the data interval this run covers (e.g. Airflow's data_interval_end)
+# The baseline window queries historical sketches using run_ts as the upper bound,
+# so each run needs a distinct timestamp to see prior runs as history.
+run_ts = datetime(2026, 3, 30, tzinfo=timezone.utc)
 
 # 1. Compute sketches from your data
 df = pd.read_parquet("features/latest.parquet")
@@ -54,6 +61,7 @@ records = provider.sketch(
     text_columns=["description"],
     id_columns=["user_id"],
     numeric_columns=["session_count", "revenue"],
+    run_ts=run_ts,
 )
 
 # 2. Persist sketches for baseline building
@@ -67,17 +75,13 @@ result = asyncio.run(framework.run({
     "dataset_id": "user_features",
     "job_id":     "train_job_42",
     "sketch_records": records,
+    "data_interval_end": run_ts,
     "baseline_config": BaselineConfig(dataset_id="user_features", window_days=7),
 }))
 
 print(result.severity)   # ok | warn | alert
 print(result.summary)    # "Jaccard similarity dropped 34% vs 7-day baseline..."
 ```
-
-> **Note:** `run_ts` on sketches and `data_interval_end` in the job dict control baseline
-> window matching. In production, set these to your pipeline's data interval end (e.g.,
-> Airflow's `data_interval_end`). The baseline query uses `run_ts` as the upper bound —
-> runs with identical timestamps won't see each other as history.
 
 Heuristic rules run on every job (free, instant). Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 to add LLM-powered interpretation — the LLM is only invoked when heuristics flag warn/alert,
