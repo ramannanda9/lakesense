@@ -218,11 +218,11 @@ async def base_interpret(
     if not llm_provider:
         # Auto-resolve from environment if absent
         if "ANTHROPIC_API_KEY" in os.environ:
-            from lakesense.interpreter.providers.anthropic import AnthropicProvider
+            from lakesense.interpreter.providers.anthropic_provider import AnthropicProvider
 
             llm_provider = AnthropicProvider()
         elif "OPENAI_API_KEY" in os.environ:
-            from lakesense.interpreter.providers.openai import OpenAIProvider
+            from lakesense.interpreter.providers.openai_provider import OpenAIProvider
 
             llm_provider = OpenAIProvider()
 

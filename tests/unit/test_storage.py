@@ -86,6 +86,17 @@ class TestParquetBackend:
         assert restored.num_rows == 1000
         assert restored.null_count == 10
 
+    @pytest.mark.asyncio
+    async def test_read_sketches_with_datetime_input(self, backend):
+        """read_sketches should accept datetime objects, not just ISO strings."""
+        rec = _sketch_record()
+        await backend.write_sketches([rec])
+
+        from_dt = rec.run_ts.replace(hour=0, minute=0, second=0)
+        results = await backend.read_sketches("ds1", after_ts=from_dt)
+        assert len(results) == 1
+        assert results[0].dataset_id == "ds1"
+
 
 class TestDuckDBBackend:
     @pytest.fixture

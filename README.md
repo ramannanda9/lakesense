@@ -24,8 +24,9 @@ Key properties:
 - **Probabilistic sketches** — MinHash, HLL, KLL for O(1) memory profiling with mergeable baselines
 - **Full column profiling** — null rates, int ranges, categorical distributions, boolean ratios, string lengths, schema drift
 - **Distributed compute** — Spark provider for distributed sketch computation via `mapInPandas`
-- **Zero-infra quickstart** — Parquet backend, no catalog or cluster required
+- **Zero-infra quickstart** — Parquet backend, or native Lakehouse via Iceberg backend
 - **Plugin architecture** — bring your own storage, alerting, and agent tools
+- **Tier 2 Investigative Agent** — on critical data drift, an LLM agent automatically traces DataHub lineage and Slack for root causes
 - **Two-tier cost control** — heuristics always run free; LLM only invoked on warn/alert; expensive agent only on alert
 - **No-network mode** — works 100% locally using heuristic rules when no API key is set
 
@@ -87,6 +88,25 @@ Heuristic rules run on every job (free, instant). Set `OPENAI_API_KEY` or `ANTHR
 to add LLM-powered interpretation — the LLM is only invoked when heuristics flag warn/alert,
 so healthy runs never incur an API call.
 
+The framework auto-detects your provider from the environment. To use a specific provider:
+
+```python
+from lakesense.interpreter.providers.anthropic_provider import AnthropicProvider
+from lakesense.interpreter.providers.openai_provider import OpenAIProvider
+
+# Anthropic (default model: claude-sonnet-4-6)
+framework = SketchFramework(storage=storage, llm_provider=AnthropicProvider())
+
+# OpenAI (default model: gpt-4o)
+framework = SketchFramework(storage=storage, llm_provider=OpenAIProvider())
+
+# Custom model + token budget
+framework = SketchFramework(
+    storage=storage,
+    llm_provider=AnthropicProvider(model="claude-sonnet-4-6", max_tokens=8192),
+)
+```
+
 Run the full quickstart example (no API key needed):
 
 ```bash
@@ -116,10 +136,27 @@ warn/alert  →  Tier 2: plugins (investigative agent, Slack, PagerDuty)  →  r
 Plugins run in registration order, each receiving the result enriched by prior plugins:
 
 ```python
+from lakesense.plugins.agent import InvestigativeAgentPlugin
+from lakesense.plugins.slack import SlackAlertPlugin
+from lakesense.plugins.tools.datahub import DataHubLineageTool, DataHubSearchTool
+from lakesense.plugins.tools.slack import SlackIncidentSearchTool
+
+# Configure agent tools — the LLM calls these during its ReAct loop
+datahub = DataHubLineageTool(endpoint="https://my-datahub.local", token="...")
+datahub_search = DataHubSearchTool(endpoint="https://my-datahub.local", token="...")
+slack_search = SlackIncidentSearchTool(token="xoxb-your-slack-token")
+
 framework = (
-    SketchFramework(storage=ParquetBackend("./sketches"))
-    .register(InvestigativeAgentPlugin())   # root cause analysis
-    .register(SlackAlertPlugin(webhook=WEBHOOK))  # needs owners from agent
+    SketchFramework(storage=IcebergBackend(catalog_name="default", sketches_table="lakesense.sketches"))
+    # Tier 2 agent — traces lineage + searches Slack for root cause
+    .register(InvestigativeAgentPlugin(tools=[
+        datahub.get_upstream_lineage,
+        datahub.get_downstream_lineage,
+        datahub_search.search_datahub_dataset,
+        slack_search.search_slack_incidents,
+    ]))
+    # Slack alerting — posts enriched alerts after the agent investigates
+    .register(SlackAlertPlugin(webhook="https://hooks.slack.com/services/..."))
 )
 ```
 
@@ -132,6 +169,15 @@ framework = (
 | `PandasProvider` | Single-machine, local dev | `pip install lakesense` |
 | `SparkProvider` | Distributed compute via `mapInPandas` | `pip install lakesense[spark]` |
 | `StreamingProvider` | Incremental / micro-batch | `pip install lakesense` |
+
+## LLM providers
+
+| Provider | Default model | Install |
+|---|---|---|
+| `AnthropicProvider` | `claude-sonnet-4-6` | `pip install lakesense[anthropic]` |
+| `OpenAIProvider` | `gpt-4o` | `pip install lakesense[openai]` |
+
+Both providers implement the `LLMProvider` interface (`analyze` for Tier 1 interpretation, `act_and_reason` for the Tier 2 ReAct agent loop). The framework auto-resolves the provider from your environment if not explicitly set.
 
 ## Sketch types
 
@@ -148,7 +194,15 @@ framework = (
 |---|---|---|
 | `ParquetBackend` | Zero-infra, local dev | `pip install lakesense` |
 | `DuckDBBackend` | Local + SQL queries | `pip install lakesense[duckdb]` |
-| `IcebergBackend` | Production lakehouse (v0.2) | `pip install lakesense[iceberg]` |
+| `IcebergBackend` | Production lakehouse, native timestamps | `pip install lakesense[iceberg]` |
+
+## Agent tools
+
+| Tool | Purpose | Install |
+|---|---|---|
+| `DataHubLineageTool` | Upstream/downstream lineage tracing | `pip install lakesense[datahub]` |
+| `DataHubSearchTool` | Resolve dataset names to DataHub URNs | `pip install lakesense[datahub]` |
+| `SlackIncidentSearchTool` | Search Slack for correlated incidents | `pip install lakesense[slack]` |
 
 ---
 
@@ -192,9 +246,9 @@ class PagerDutyPlugin(SketchPlugin):
 
 ## Roadmap
 
-- **v0.1** — core sketches, column profiles, Parquet + DuckDB storage, Tier 1 LLM interpret, Spark provider
-- **v0.2** — agent plugin, DataHub lineage, Slack plugin, IcebergBackend
-- **v0.3** — DeltaBackend, Airflow operator, OpenLineage support
+- **v0.1** — core sketches, column profiles, Parquet + DuckDB storage, Tier 1 LLM interpret, Spark provider ✅
+- **v0.2** — provider-agnostic LLM interface (Anthropic + OpenAI), investigative agent with ReAct loop, DataHub lineage + search tools, Slack incident search tool, IcebergBackend with native timestamps ✅
+- **v0.3** — DeltaLake Backend, Airflow operator, OpenLineage support
 - **v0.4** — JIRA plugin, column-level lineage
 
 ---
