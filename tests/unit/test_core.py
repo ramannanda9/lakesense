@@ -109,3 +109,48 @@ class TestSketchPluginABC:
 
         assert p.should_run(ok_result) is False
         assert p.should_run(alert_result) is True
+
+
+class TestFromDictDatetimeCompat:
+    """Verify from_dict handles both ISO strings and datetime objects."""
+
+    def test_from_dict_with_iso_strings(self):
+        d = {
+            "dataset_id": "ds1",
+            "job_id": "j1",
+            "run_ts": "2026-03-30T12:00:00+00:00",
+            "executed_at": "2026-03-30T12:00:00+00:00",
+            "severity": "ok",
+            "summary": "test",
+        }
+        r = InterpretationResult.from_dict(d)
+        assert r.run_ts == datetime(2026, 3, 30, 12, 0, tzinfo=timezone.utc)
+
+    def test_from_dict_with_datetime_objects(self):
+        """Arrow timestamp columns return datetime objects, not strings."""
+        ts = datetime(2026, 3, 30, 12, 0, tzinfo=timezone.utc)
+        d = {
+            "dataset_id": "ds1",
+            "job_id": "j1",
+            "run_ts": ts,
+            "executed_at": ts,
+            "severity": "warn",
+            "summary": "test",
+        }
+        r = InterpretationResult.from_dict(d)
+        assert r.run_ts == ts
+        assert r.executed_at == ts
+
+    def test_from_dict_with_naive_datetime_gets_utc(self):
+        """Naive datetimes (no tzinfo) should be assumed UTC."""
+        ts = datetime(2026, 3, 30, 12, 0)  # no tz
+        d = {
+            "dataset_id": "ds1",
+            "job_id": "j1",
+            "run_ts": ts,
+            "executed_at": ts,
+            "severity": "ok",
+            "summary": "test",
+        }
+        r = InterpretationResult.from_dict(d)
+        assert r.run_ts.tzinfo == timezone.utc

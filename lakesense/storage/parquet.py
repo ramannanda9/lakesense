@@ -29,6 +29,16 @@ from lakesense.core.plugin import StorageBackend
 from lakesense.core.result import InterpretationResult
 from lakesense.sketches.compute import SketchRecord
 
+
+def _ensure_datetime(val: str | datetime) -> datetime:
+    """Normalize a str or datetime into a timezone-aware datetime."""
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc)
+        return val
+    return datetime.fromisoformat(val)
+
+
 _SKETCH_SCHEMA = pa.schema(
     [
         pa.field("dataset_id", pa.string()),
@@ -36,7 +46,7 @@ _SKETCH_SCHEMA = pa.schema(
         pa.field("column", pa.string()),
         pa.field("sketch_type", pa.string()),
         pa.field("sketch_blob", pa.binary()),
-        pa.field("run_ts", pa.string()),
+        pa.field("run_ts", pa.timestamp("us", tz="UTC")),
         pa.field("num_perm", pa.int32()),
         pa.field("num_rows", pa.int64()),
         pa.field("null_count", pa.int64()),
@@ -48,8 +58,8 @@ _INTERP_SCHEMA = pa.schema(
     [
         pa.field("dataset_id", pa.string()),
         pa.field("job_id", pa.string()),
-        pa.field("run_ts", pa.string()),
-        pa.field("executed_at", pa.string()),
+        pa.field("run_ts", pa.timestamp("us", tz="UTC")),
+        pa.field("executed_at", pa.timestamp("us", tz="UTC")),
         pa.field("severity", pa.string()),
         pa.field("summary", pa.string()),
         pa.field("jaccard_delta", pa.float64()),
@@ -110,7 +120,7 @@ class ParquetBackend(StorageBackend):
                 "column": [r.column for r in records],
                 "sketch_type": [r.sketch_type for r in records],
                 "sketch_blob": [r.sketch_blob for r in records],
-                "run_ts": [r.run_ts.isoformat() for r in records],
+                "run_ts": [r.run_ts for r in records],
                 "num_perm": [r.num_perm for r in records],
                 "num_rows": [r.num_rows for r in records],
                 "null_count": [r.null_count for r in records],
@@ -127,22 +137,25 @@ class ParquetBackend(StorageBackend):
     async def read_sketches(
         self,
         dataset_id: str,
-        after_ts: str,
-        before_ts: str | None = None,
+        after_ts: str | datetime,
+        before_ts: str | datetime | None = None,
     ) -> list[SketchRecord]:
         dataset_dir = self._sketches_root / f"dataset={dataset_id}"
         if not dataset_dir.exists():
             return []
 
         records: list[SketchRecord] = []
-        after_dt = datetime.fromisoformat(after_ts)
-        before_dt = datetime.fromisoformat(before_ts) if before_ts else datetime.now(timezone.utc)
+        after_dt = _ensure_datetime(after_ts)
+        before_dt = _ensure_datetime(before_ts) if before_ts else datetime.now(timezone.utc)
 
         # glob all parquet files across date= subdirectories
         for pfile in sorted(dataset_dir.rglob("*.parquet")):
             tbl = pq.read_table(pfile, schema=_SKETCH_SCHEMA)
             for row in tbl.to_pylist():
-                run_ts = datetime.fromisoformat(row["run_ts"])
+                run_ts = row["run_ts"]
+                # PyArrow returns datetime from timestamp columns
+                if isinstance(run_ts, str):
+                    run_ts = datetime.fromisoformat(run_ts)
                 if after_dt <= run_ts <= before_dt:
                     records.append(
                         SketchRecord(
@@ -161,23 +174,22 @@ class ParquetBackend(StorageBackend):
         return records
 
     async def write_interpretation(self, result: InterpretationResult) -> None:
-        d = result.to_dict()
         row = pa.table(
             {
-                "dataset_id": [d["dataset_id"]],
-                "job_id": [d["job_id"]],
-                "run_ts": [d["run_ts"]],
-                "executed_at": [d["executed_at"]],
-                "severity": [d["severity"]],
-                "summary": [d["summary"]],
-                "jaccard_delta": [d.get("jaccard_delta")],
-                "cardinality_ratio": [d.get("cardinality_ratio")],
-                "null_delta": [d.get("null_delta")],
-                "root_cause": [d.get("root_cause")],
-                "affected_urns": [json.dumps(d.get("affected_urns", []))],
-                "owners": [json.dumps(d.get("owners", []))],
-                "baseline_config": [json.dumps(d.get("baseline_config", {}))],
-                "metadata": [json.dumps(d.get("metadata", {}))],
+                "dataset_id": [result.dataset_id],
+                "job_id": [result.job_id],
+                "run_ts": [result.run_ts],
+                "executed_at": [result.executed_at],
+                "severity": [result.severity.value],
+                "summary": [result.summary],
+                "jaccard_delta": [result.drift_signals.jaccard_delta],
+                "cardinality_ratio": [result.drift_signals.cardinality_ratio],
+                "null_delta": [result.drift_signals.null_delta],
+                "root_cause": [result.root_cause],
+                "affected_urns": [json.dumps(result.affected_urns)],
+                "owners": [json.dumps(result.owners)],
+                "baseline_config": [json.dumps(result.baseline_config)],
+                "metadata": [json.dumps(result.metadata)],
             },
             schema=_INTERP_SCHEMA,
         )

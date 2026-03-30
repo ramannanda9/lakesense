@@ -3,7 +3,7 @@ import pytest
 
 def test_anthropic_instantiation(monkeypatch):
     pytest.importorskip("anthropic")
-    from lakesense.interpreter.providers.anthropic import AnthropicProvider
+    from lakesense.interpreter.providers.anthropic_provider import AnthropicProvider
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-anthropic")
     provider = AnthropicProvider()
@@ -12,7 +12,7 @@ def test_anthropic_instantiation(monkeypatch):
 
 def test_openai_instantiation(monkeypatch):
     pytest.importorskip("openai")
-    from lakesense.interpreter.providers.openai import OpenAIProvider
+    from lakesense.interpreter.providers.openai_provider import OpenAIProvider
 
     monkeypatch.setenv("OPENAI_API_KEY", "test-key-openai")
     provider = OpenAIProvider()
@@ -21,7 +21,7 @@ def test_openai_instantiation(monkeypatch):
 
 def test_missing_anthropic_key(monkeypatch):
     pytest.importorskip("anthropic")
-    from lakesense.interpreter.providers.anthropic import AnthropicProvider
+    from lakesense.interpreter.providers.anthropic_provider import AnthropicProvider
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY is required"):
@@ -30,7 +30,7 @@ def test_missing_anthropic_key(monkeypatch):
 
 def test_missing_openai_key(monkeypatch):
     pytest.importorskip("openai")
-    from lakesense.interpreter.providers.openai import OpenAIProvider
+    from lakesense.interpreter.providers.openai_provider import OpenAIProvider
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="OPENAI_API_KEY is required"):

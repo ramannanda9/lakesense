@@ -173,13 +173,22 @@ class InterpretationResult:
             ks_test_divergent=d.get("ks_test_divergent"),
             null_delta=d.get("null_delta"),
         )
+
+        def _parse_ts(val: Any) -> datetime:
+            """Parse a timestamp value — handles both datetime objects and ISO strings."""
+            if isinstance(val, datetime):
+                if val.tzinfo is None:
+                    return val.replace(tzinfo=timezone.utc)
+                return val
+            return datetime.fromisoformat(str(val))
+
         # executed_at falls back to run_ts for records written before this field existed
         executed_at_raw = d.get("executed_at") or d["run_ts"]
         return cls(
             dataset_id=d["dataset_id"],
             job_id=d["job_id"],
-            run_ts=datetime.fromisoformat(d["run_ts"]),
-            executed_at=datetime.fromisoformat(executed_at_raw),
+            run_ts=_parse_ts(d["run_ts"]),
+            executed_at=_parse_ts(executed_at_raw),
             severity=Severity(d["severity"]),
             summary=d.get("summary", ""),
             drift_signals=signals,

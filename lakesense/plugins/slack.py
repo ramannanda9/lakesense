@@ -80,9 +80,14 @@ class SlackAlertPlugin(SketchPlugin):
             raise ImportError("SlackAlertPlugin requires httpx. Install with: pip install lakesense[slack]") from e
 
         payload = self._build_payload(result)
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(self._webhook, json=payload, timeout=10.0)
-            resp.raise_for_status()
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(self._webhook, json=payload, timeout=10.0)
+                resp.raise_for_status()
+        except Exception as e:
+            logger.error("Slack webhook failed (pipeline continues): %s", e)
+            result.metadata["slack_error"] = str(e)
+            return result
 
         result.metadata["slack_sent"] = True
         result.metadata["slack_channel"] = self._channel
@@ -105,7 +110,7 @@ class SlackAlertPlugin(SketchPlugin):
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": (f"{emoji} Data Quality {result.severity.value.upper()}: {result.dataset_id}"),
+                    "text": (f"{emoji} Data Quality {result.severity.value.upper()}: {result.dataset_id}")[:150],
                 },
             },
             {

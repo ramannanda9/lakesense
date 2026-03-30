@@ -83,11 +83,9 @@ class SketchFramework:
 
             plugins = [*plugins, StoragePlugin(storage=self._storage)]
 
-        # Bind any unbound StoragePlugins to our storage backend
-        from lakesense.plugins.store import StoragePlugin as SP
-
+        # Bind any unbound plugins to our storage backend
         for plugin in plugins:
-            if isinstance(plugin, SP) and plugin._storage is None:
+            if hasattr(plugin, "bind") and getattr(plugin, "_storage", None) is None:
                 plugin.bind(self._storage)
 
         # Tier 2 — plugin chain

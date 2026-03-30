@@ -13,6 +13,7 @@ Both follow the same pattern:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -77,8 +78,8 @@ class StorageBackend(ABC):
     async def read_sketches(
         self,
         dataset_id: str,
-        after_ts: str,
-        before_ts: str | None = None,
+        after_ts: str | datetime,
+        before_ts: str | datetime | None = None,
     ) -> list[SketchRecord]:
         """
         Fetch sketch records for a dataset within a time range.
