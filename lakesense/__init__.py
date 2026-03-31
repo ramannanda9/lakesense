@@ -20,7 +20,7 @@ from lakesense.core.plugin import SketchPlugin, StorageBackend
 from lakesense.core.result import DriftSignals, InterpretationResult, Severity
 from lakesense.sketches.merge import BaselineConfig, BaselineStrategy
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 __all__ = [
     "SketchFramework",
