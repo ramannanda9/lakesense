@@ -16,7 +16,7 @@ import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from datasketches import (
     compact_theta_sketch,
@@ -63,24 +63,52 @@ def hll_to_blob(h: hll_sketch) -> bytes:
     return h.serialize_updatable()
 
 
+def _word_ngram_tokens(val: str, n: int = 2) -> list[str]:
+    """Unigrams + bigrams from whitespace-split words. Better Jaccard sensitivity than plain bag-of-words."""
+    words = val.lower().split()
+    tokens = words[:]
+    for i in range(len(words) - n + 1):
+        tokens.append(" ".join(words[i : i + n]))
+    return tokens
+
+
+def _char_shingle_tokens(val: str, k: int = 3) -> list[str]:
+    """Character k-shingles — catches format/structure drift in short strings and IDs."""
+    s = val.lower()
+    if len(s) <= k:
+        return [s]
+    return [s[i : i + k] for i in range(len(s) - k + 1)]
+
+
 def compute_minhash(
     values: Iterable[str],
     num_perm: int = 128,
+    tokenizer: Literal["word_ngram", "char_shingle", "whitespace"] = "word_ngram",
 ) -> tuple[bytes, compact_theta_sketch]:
     """
-    Compute a Theta sketch over a list of string values (kept name as minhash for compatibility).
-    Tokenizes by whitespace — suitable for text columns and set-valued features.
+    Compute a Theta sketch over a list of string values.
 
     Args:
-        values:   iterable of string values (nulls pre-filtered by caller)
-        num_perm: kept for signature compatibility.
+        values:    iterable of string values (nulls pre-filtered by caller)
+        num_perm:  kept for signature compatibility.
+        tokenizer: tokenization strategy:
+                   - "word_ngram"   (default) unigrams + bigrams; best for free-text columns
+                   - "char_shingle" 3-char shingles; best for IDs and short structured strings
+                   - "whitespace"   legacy whitespace split; plain bag-of-words
 
     Returns:
         (blob, compact_theta) — blob for storage, theta sketch for immediate comparison
     """
     m = update_theta_sketch(12)  # lg_k=12 gives similar space/accuracy to num_perm=128
     for val in values:
-        for token in str(val).lower().split():
+        s = str(val)
+        if tokenizer == "char_shingle":
+            tokens = _char_shingle_tokens(s)
+        elif tokenizer == "whitespace":
+            tokens = s.lower().split()
+        else:  # word_ngram (default)
+            tokens = _word_ngram_tokens(s)
+        for token in tokens:
             m.update(token)
     compact = m.compact()
     return compact.serialize(), compact

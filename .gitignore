@@ -27,3 +27,6 @@ driftsketch_data/
 .idea/
 *.swp
 *.swo
+
+# claude code
+.claude/settings.local.json

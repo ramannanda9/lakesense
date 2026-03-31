@@ -58,6 +58,14 @@ def compute_signals(
     if current.sketch_type == "minhash":
         from datasketches import theta_jaccard_similarity
 
+        cur_tok = current.sketch_config.get("tokenizer")
+        base_tok = baseline.sketch_config.get("tokenizer")
+        if cur_tok and base_tok and cur_tok != base_tok:
+            raise ValueError(
+                f"Tokenizer mismatch: current sketch uses '{cur_tok}' but baseline uses '{base_tok}'. "
+                "Rebuild the baseline with the same tokenizer before comparing."
+            )
+
         cur_mh = _deserialize_minhash(current.sketch_blob)
         base_mh = _deserialize_minhash(baseline.sketch_blob)
 

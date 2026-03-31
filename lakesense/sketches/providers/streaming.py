@@ -64,10 +64,20 @@ class StreamingProvider(SketchProvider):
         for col in text_columns or []:
             if col in data:
                 # pass the iterable block
-                blob, _ = compute_minhash(data[col])
+                blob, _ = compute_minhash(data[col], tokenizer="word_ngram")
                 # Note: stream count tracking logic is missing here
                 # natively without building a wrapper
-                records.append(_base(col, "minhash", blob, num_rows=0, null_count=0, num_perm=128))
+                records.append(
+                    _base(
+                        col,
+                        "minhash",
+                        blob,
+                        num_rows=0,
+                        null_count=0,
+                        num_perm=128,
+                        sketch_config={"tokenizer": "word_ngram"},
+                    )
+                )
 
         # HLL
         for col in id_columns or []:
