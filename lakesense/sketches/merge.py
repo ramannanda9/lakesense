@@ -16,10 +16,10 @@ window baselines nearly free to recompute at cadence.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from lakesense.sketches.compute import SketchRecord
 
@@ -77,6 +77,7 @@ class BaselineSketch:
     source_count: int
     strategy: BaselineStrategy
     merged_at: datetime
+    sketch_config: dict[str, Any] = field(default_factory=dict)
 
 
 def merge_minhash_records(
@@ -168,6 +169,12 @@ def build_baseline(
         weights = _ewma_weights(len(typed), config.decay_factor)
 
     if sketch_type == "minhash":
+        tokenizers = {r.sketch_config.get("tokenizer") for r in typed}
+        if len(tokenizers) > 1:
+            raise ValueError(
+                f"Cannot merge minhash records with mixed tokenizers: {tokenizers}. "
+                "All records must use the same tokenizer."
+            )
         blob = merge_minhash_records(typed, weights=weights)
     elif sketch_type == "hll":
         blob = merge_hll_records(typed)
@@ -181,6 +188,7 @@ def build_baseline(
             base_sk.merge(sk)
         blob = base_sk.serialize()
 
+    baseline_config = typed[0].sketch_config if sketch_type == "minhash" else {}
     return BaselineSketch(
         dataset_id=config.dataset_id,
         column=column,
@@ -189,4 +197,5 @@ def build_baseline(
         source_count=len(typed),
         strategy=config.strategy,
         merged_at=datetime.now(timezone.utc),
+        sketch_config=baseline_config,
     )

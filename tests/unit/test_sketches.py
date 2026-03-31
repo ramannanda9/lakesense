@@ -17,7 +17,7 @@ from lakesense.sketches.signals import aggregate_signals, compute_signals
 
 class TestMinHash:
     def test_identical_sets_jaccard_one(self):
-        tokens = ["the", "cat", "sat", "on", "the", "mat"]
+        tokens = ["the cat sat", "on the mat"]
         blob1, m1 = compute_minhash(tokens)
         blob2, m2 = compute_minhash(tokens)
         from datasketches import theta_jaccard_similarity
@@ -26,8 +26,8 @@ class TestMinHash:
         assert jaccard == pytest.approx(1.0, abs=0.01)
 
     def test_disjoint_sets_low_jaccard(self):
-        blob1, m1 = compute_minhash(["apple", "banana", "cherry"])
-        blob2, m2 = compute_minhash(["dog", "elephant", "fox"])
+        blob1, m1 = compute_minhash(["apple pie is great", "banana split dessert"])
+        blob2, m2 = compute_minhash(["dog walks in park", "elephant runs fast fox"])
         from datasketches import theta_jaccard_similarity
 
         jaccard = theta_jaccard_similarity.jaccard(m1, m2)[1]
@@ -41,6 +41,42 @@ class TestMinHash:
     def test_custom_num_perm(self):
         blob, _ = compute_minhash(["x"], num_perm=64)
         assert len(blob) > 0
+
+    def test_word_ngram_more_sensitive_than_whitespace(self):
+        # "payment failed" vs "failed payment" — same bag-of-words, different bigrams
+        from datasketches import theta_jaccard_similarity
+
+        blob1, m1 = compute_minhash(["payment failed"], tokenizer="word_ngram")
+        blob2, m2 = compute_minhash(["failed payment"], tokenizer="word_ngram")
+        jaccard_ngram = theta_jaccard_similarity.jaccard(m1, m2)[1]
+
+        blob3, m3 = compute_minhash(["payment failed"], tokenizer="whitespace")
+        blob4, m4 = compute_minhash(["failed payment"], tokenizer="whitespace")
+        jaccard_whitespace = theta_jaccard_similarity.jaccard(m3, m4)[1]
+
+        # word_ngram should detect more difference (lower jaccard) due to bigrams
+        assert jaccard_ngram < jaccard_whitespace
+
+    def test_char_shingle_catches_id_format_drift(self):
+        # user_id_123 vs usr_id_123 — structurally similar but char shingles differ
+        from datasketches import theta_jaccard_similarity
+
+        ids_v1 = [f"user_id_{i}" for i in range(50)]
+        ids_v2 = [f"usr_id_{i}" for i in range(50)]  # prefix changed
+
+        blob1, m1 = compute_minhash(ids_v1, tokenizer="char_shingle")
+        blob2, m2 = compute_minhash(ids_v2, tokenizer="char_shingle")
+        jaccard = theta_jaccard_similarity.jaccard(m1, m2)[1]
+        assert jaccard < 0.95  # detects structural drift (not identical)
+
+    def test_whitespace_tokenizer_legacy_behaviour(self):
+        from datasketches import theta_jaccard_similarity
+
+        tokens = ["hello world", "hello world"]
+        blob1, m1 = compute_minhash(tokens, tokenizer="whitespace")
+        blob2, m2 = compute_minhash(tokens, tokenizer="whitespace")
+        jaccard = theta_jaccard_similarity.jaccard(m1, m2)[1]
+        assert jaccard == pytest.approx(1.0, abs=0.01)
 
 
 class TestHyperLogLog:

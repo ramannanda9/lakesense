@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lakesense"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Intelligent ML data observability for the lakehouse — sketch-based profiling with LLM interpretation"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -52,6 +52,9 @@ all = ["lakesense[duckdb,iceberg,datahub,slack,pandas,spark,anthropic,openai]"]
 Homepage = "https://github.com/ramannanda9/lakesense"
 Documentation = "https://github.com/ramannanda9/lakesense/tree/main/docs"
 Issues = "https://github.com/ramannanda9/lakesense/issues"
+
+[tool.hatch.version]
+path = "lakesense/__init__.py"
 
 [tool.ruff]
 line-length = 120

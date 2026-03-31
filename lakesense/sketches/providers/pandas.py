@@ -55,8 +55,8 @@ class PandasProvider(SketchProvider):
 
         for col in text_columns or []:
             vals = data[col].dropna().tolist()
-            blob, _ = compute_minhash(vals)
-            records.append(_base(col, "minhash", blob, num_perm=128))
+            blob, _ = compute_minhash(vals, tokenizer="word_ngram")
+            records.append(_base(col, "minhash", blob, num_perm=128, sketch_config={"tokenizer": "word_ngram"}))
 
         for col in id_columns or []:
             vals = data[col].dropna().tolist()
