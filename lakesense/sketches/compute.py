@@ -100,16 +100,22 @@ def compute_minhash(
         (blob, compact_theta) — blob for storage, theta sketch for immediate comparison
     """
     m = update_theta_sketch(12)  # lg_k=12 gives similar space/accuracy to num_perm=128
-    for val in values:
-        s = str(val)
-        if tokenizer == "char_shingle":
-            tokens = _char_shingle_tokens(s)
-        elif tokenizer == "whitespace":
-            tokens = s.lower().split()
-        else:  # word_ngram (default)
-            tokens = _word_ngram_tokens(s)
-        for token in tokens:
-            m.update(token)
+    # Branch resolved once outside the loop — avoids per-iteration dispatch overhead.
+    if tokenizer == "word_ngram":
+        for val in values:
+            words = str(val).lower().split()
+            for w in words:
+                m.update(w)
+            for i in range(len(words) - 1):
+                m.update(words[i] + " " + words[i + 1])
+    elif tokenizer == "char_shingle":
+        for val in values:
+            for token in _char_shingle_tokens(str(val)):
+                m.update(token)
+    else:  # whitespace (legacy)
+        for val in values:
+            for token in str(val).lower().split():
+                m.update(token)
     compact = m.compact()
     return compact.serialize(), compact
 
