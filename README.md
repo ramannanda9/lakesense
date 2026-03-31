@@ -188,6 +188,30 @@ Both providers implement the `LLMProvider` interface (`analyze` for Tier 1 inter
 | KLL | Quantile estimation, distribution shape shifts | approx via sorted sample |
 | Profile | Deterministic column metrics (nulls, ranges, categoricals) | scalar comparison |
 
+### MinHash tokenizers
+
+`compute_minhash` supports three tokenization strategies via the `tokenizer` parameter:
+
+| Tokenizer | Default | Best for | How it works |
+|---|---|---|---|
+| `word_ngram` | ✅ | Free-text columns | Unigrams + bigrams — detects word-order and co-occurrence drift, not just bag-of-words changes |
+| `char_shingle` | | Short strings, IDs, codes | 3-character shingles — catches format/structure drift (e.g. `user_id_*` → `usr_id_*`) |
+| `whitespace` | | Legacy / backwards compat | Plain whitespace split — original behaviour prior to v0.2.1 |
+
+```python
+from lakesense.sketches.compute import compute_minhash
+
+# default — word bigrams, best for descriptions/text
+blob, sketch = compute_minhash(values)
+
+# char shingles — better for structured strings
+blob, sketch = compute_minhash(values, tokenizer="char_shingle")
+```
+
+> **Baseline compatibility:** all records in a baseline window must use the same tokenizer.
+> Mixing tokenizers raises a `ValueError` at merge time. Baselines built before v0.2.1
+> (whitespace) must be rebuilt when upgrading.
+
 ## Storage backends
 
 | Backend | Use case | Install |
@@ -248,6 +272,7 @@ class PagerDutyPlugin(SketchPlugin):
 
 - **v0.1** — core sketches, column profiles, Parquet + DuckDB storage, Tier 1 LLM interpret, Spark provider ✅
 - **v0.2** — provider-agnostic LLM interface (Anthropic + OpenAI), investigative agent with ReAct loop, DataHub lineage + search tools, Slack incident search tool, IcebergBackend with native timestamps ✅
+- **v0.2.1** — word n-gram tokenization for MinHash (replaces naive whitespace split), tokenizer consistency guards, single-sourced version ✅
 - **v0.3** — DeltaLake Backend, Airflow operator, OpenLineage support
 - **v0.4** — JIRA plugin, column-level lineage
 
