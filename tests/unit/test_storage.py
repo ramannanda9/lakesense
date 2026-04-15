@@ -3,7 +3,7 @@
 
 import pytest
 
-from lakesense.core.result import DriftSignals, InterpretationResult, Severity
+from lakesense.core.result import DatasetDriftSummary, InterpretationResult, Severity
 from lakesense.sketches.compute import SketchRecord, compute_minhash
 from lakesense.storage.parquet import ParquetBackend
 
@@ -28,7 +28,7 @@ def _interp_result(dataset_id="ds1", severity=Severity.OK) -> InterpretationResu
         job_id="job1",
         severity=severity,
         summary="test summary",
-        drift_signals=DriftSignals(jaccard_delta=-0.1),
+        dataset_drift_summary=DatasetDriftSummary(jaccard_delta=-0.1),
     )
 
 

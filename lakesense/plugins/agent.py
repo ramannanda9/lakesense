@@ -85,7 +85,7 @@ class InvestigativeAgentPlugin(SketchPlugin):
             f"Job ID: {result.job_id}\n"
             f"Time: {result.run_ts.isoformat()}\n"
             f"Tier 1 Summary: {result.summary}\n"
-            f"Worst Signal: {result.drift_signals.worst_signal()}\n\n"
+            f"Worst Signal: {result.dataset_drift_summary.worst_signal()}\n\n"
             f"Please investigate using your tools."
         )
 

@@ -176,8 +176,9 @@ class TestSignals:
         s1 = DriftSignals(jaccard_delta=-0.1)
         s2 = DriftSignals(jaccard_delta=-0.5)
         s3 = DriftSignals(jaccard_delta=-0.2)
-        agg = aggregate_signals([s1, s2, s3])
+        agg = aggregate_signals({"col_a": s1, "col_b": s2, "col_c": s3})
         assert agg.jaccard_delta == -0.5
+        assert agg.jaccard_worst_column == "col_b"
 
     def test_ks_distribution_shift(self):
         import random

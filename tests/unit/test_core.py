@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from lakesense.core.plugin import SketchPlugin
-from lakesense.core.result import DriftSignals, InterpretationResult, Severity
+from lakesense.core.result import DatasetDriftSummary, DriftSignals, InterpretationResult, Severity
 
 
 class TestSeverity:
@@ -21,11 +21,11 @@ class TestSeverity:
 
 class TestDriftSignals:
     def test_worst_signal_jaccard(self):
-        s = DriftSignals(jaccard_delta=-0.4)
+        s = DatasetDriftSummary(jaccard_delta=-0.4)
         assert "jaccard_delta" in s.worst_signal()
 
     def test_worst_signal_empty(self):
-        s = DriftSignals()
+        s = DatasetDriftSummary()
         assert s.worst_signal() == "no signals"
 
     def test_null_rate(self):
@@ -49,7 +49,7 @@ class TestInterpretationResult:
         r = self._make(
             severity=Severity.ALERT,
             summary="test summary",
-            drift_signals=DriftSignals(jaccard_delta=-0.5, cardinality_ratio=0.4),
+            dataset_drift_summary=DatasetDriftSummary(jaccard_delta=-0.5, cardinality_ratio=0.4),
             root_cause="schema change",
             owners=["alice", "bob"],
         )
@@ -59,7 +59,7 @@ class TestInterpretationResult:
         assert restored.summary == "test summary"
         assert restored.root_cause == "schema change"
         assert restored.owners == ["alice", "bob"]
-        assert restored.drift_signals.jaccard_delta == pytest.approx(-0.5)
+        assert restored.dataset_drift_summary.jaccard_delta == pytest.approx(-0.5)
 
     def test_is_agent_enriched(self):
         r = self._make(root_cause="upstream schema drop")
