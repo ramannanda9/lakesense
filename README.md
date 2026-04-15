@@ -82,6 +82,8 @@ result = asyncio.run(framework.run({
 
 print(result.severity)   # ok | warn | alert
 print(result.summary)    # "Jaccard similarity dropped 34% vs 7-day baseline..."
+print(result.dataset_drift_summary.worst_signal())
+# "jaccard_delta=-0.340 on description, null_rate_delta=0.120 on score"
 ```
 
 Heuristic rules run on every job (free, instant). Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
@@ -179,6 +181,34 @@ framework = (
 
 Both providers implement the `LLMProvider` interface (`analyze` for Tier 1 interpretation, `act_and_reason` for the Tier 2 ReAct agent loop). The framework auto-resolves the provider from your environment if not explicitly set.
 
+## Drift signals
+
+`InterpretationResult.dataset_drift_summary` is a `DatasetDriftSummary` — the dataset-level view of drift, with per-metric column attribution so you know exactly which column drove each signal:
+
+```python
+summary = result.dataset_drift_summary
+
+# Which column had the worst Jaccard drop?
+print(summary.jaccard_delta)          # -0.34
+print(summary.jaccard_worst_column)   # "description"
+
+# Which column had the biggest null rate spike?
+print(summary.max_null_rate_delta)    # 0.12
+print(summary.null_rate_worst_column) # "score"
+
+# Schema drift
+print(summary.missing_columns)        # ["user_tier"]
+print(summary.row_count_delta)        # 0.45 (current / baseline row count ratio)
+
+# Human-readable summary of worst signals with column attribution
+print(summary.worst_signal())
+# "jaccard_delta=-0.340 on description, null_rate_delta=0.120 on score"
+```
+
+Per-column signals (Jaccard, cardinality, quantile) come from probabilistic sketches.
+Profile-based signals (null rate, bool rate, categorical shift, range violations) come from deterministic column profiles.
+Dataset-level signals (schema drift, row count) are computed across all columns.
+
 ## Sketch types
 
 | Sketch | Use case | Merge cost |
@@ -273,6 +303,7 @@ class PagerDutyPlugin(SketchPlugin):
 - **v0.1** — core sketches, column profiles, Parquet + DuckDB storage, Tier 1 LLM interpret, Spark provider ✅
 - **v0.2** — provider-agnostic LLM interface (Anthropic + OpenAI), investigative agent with ReAct loop, DataHub lineage + search tools, Slack incident search tool, IcebergBackend with native timestamps ✅
 - **v0.2.1** — word n-gram tokenization for MinHash (replaces naive whitespace split), tokenizer consistency guards, single-sourced version ✅
+- **v0.2.2** — per-column signal attribution (`DatasetDriftSummary` with `*_worst_column` fields), schema drift + row count wired into base interpreter ✅
 - **v0.3** — DeltaLake Backend, Airflow operator, OpenLineage support
 - **v0.4** — JIRA plugin, column-level lineage
 

@@ -17,16 +17,17 @@ Quick start:
 
 from lakesense.core.framework import SketchFramework
 from lakesense.core.plugin import SketchPlugin, StorageBackend
-from lakesense.core.result import DriftSignals, InterpretationResult, Severity
+from lakesense.core.result import DatasetDriftSummary, DriftSignals, InterpretationResult, Severity
 from lakesense.sketches.merge import BaselineConfig, BaselineStrategy
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 __all__ = [
     "SketchFramework",
     "SketchPlugin",
     "StorageBackend",
     "InterpretationResult",
+    "DatasetDriftSummary",
     "DriftSignals",
     "Severity",
     "BaselineConfig",

@@ -72,7 +72,7 @@ class SketchFramework:
             "tier1 complete: dataset=%s severity=%s signals=%s",
             result.dataset_id,
             result.severity.value,
-            result.drift_signals.worst_signal(),
+            result.dataset_drift_summary.worst_signal(),
         )
 
         # Ensure there is always a StoragePlugin in the chain.

@@ -157,45 +157,29 @@ class TestProfileSignals:
         baseline = self._make_profiles(null_rate=0.02)
         current = self._make_profiles(null_rate=0.40)  # spike
         signals = compute_profile_signals(current, baseline)
-        assert signals.max_null_rate_delta == pytest.approx(0.38, abs=0.01)
+        assert signals["score"].max_null_rate_delta == pytest.approx(0.38, abs=0.01)
 
     def test_bool_rate_delta(self):
         baseline = self._make_profiles(bool_true=0.60)
         current = self._make_profiles(bool_true=0.05)  # nearly all False
         signals = compute_profile_signals(current, baseline)
-        assert signals.bool_true_rate_delta == pytest.approx(0.55, abs=0.01)
+        assert signals["is_active"].bool_true_rate_delta == pytest.approx(0.55, abs=0.01)
 
     def test_categorical_shift(self):
         baseline = self._make_profiles(top_vals=[("active", 80), ("inactive", 20)])
         current = self._make_profiles(top_vals=[("unknown", 90), ("error", 10)])
         signals = compute_profile_signals(current, baseline)
-        assert signals.categorical_top_shift == pytest.approx(1.0, abs=0.01)
-
-    def test_missing_column_detected(self):
-        baseline = self._make_profiles()
-        # remove "status" from current
-        current = [p for p in self._make_profiles() if p.column != "status"]
-        signals = compute_profile_signals(current, baseline)
-        assert "status" in signals.missing_columns
-
-    def test_new_column_detected(self):
-        baseline = self._make_profiles()
-        current = self._make_profiles() + [
-            ColumnProfile(column="new_feature", dtype="float64", row_count=100, null_count=0)
-        ]
-        signals = compute_profile_signals(current, baseline)
-        assert "new_feature" in signals.new_columns
+        assert signals["status"].categorical_top_shift == pytest.approx(1.0, abs=0.01)
 
     def test_integer_negative_spike(self):
         baseline = self._make_profiles(neg_count=0)
         current = self._make_profiles(neg_count=15)  # negatives appeared
         signals = compute_profile_signals(current, baseline)
-        assert signals.range_min_delta is not None
-        assert signals.range_min_delta < 0
+        assert signals["score"].range_min_delta is not None
+        assert signals["score"].range_min_delta < 0
 
     def test_no_drift_produces_small_signals(self):
         profiles = self._make_profiles()
         signals = compute_profile_signals(profiles, profiles)
-        assert (signals.max_null_rate_delta or 0.0) == pytest.approx(0.0)
-        assert (signals.bool_true_rate_delta or 0.0) == pytest.approx(0.0)
-        assert signals.missing_columns == []
+        assert (signals["score"].max_null_rate_delta or 0.0) == pytest.approx(0.0)
+        assert (signals["is_active"].bool_true_rate_delta or 0.0) == pytest.approx(0.0)

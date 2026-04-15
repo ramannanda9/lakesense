@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from lakesense.core.plugin import StorageBackend
-from lakesense.core.result import DriftSignals, InterpretationResult, Severity
+from lakesense.core.result import DatasetDriftSummary, DriftSignals, InterpretationResult, Severity
 from lakesense.interpreter.providers import LLMProvider
 from lakesense.sketches.compute import SketchRecord
 from lakesense.sketches.merge import BaselineConfig, BaselineStrategy, build_baseline
@@ -52,7 +52,7 @@ Be concise. Do not speculate beyond the provided signals.\
 def _build_prompt(
     dataset_id: str,
     job_id: str,
-    signals: DriftSignals,
+    signals: DatasetDriftSummary,
     baseline_config: dict[str, Any],
     history: list[InterpretationResult],
 ) -> str:
@@ -67,10 +67,15 @@ def _build_prompt(
             "baseline_config": baseline_config,
             "drift_signals": {
                 "jaccard_delta": signals.jaccard_delta,
+                "jaccard_worst_column": signals.jaccard_worst_column,
                 "cardinality_ratio": signals.cardinality_ratio,
+                "cardinality_worst_column": signals.cardinality_worst_column,
                 "quantile_shifts": signals.quantile_shifts,
-                "null_rate": signals.null_rate,
+                "max_null_rate_delta": signals.max_null_rate_delta,
+                "null_rate_worst_column": signals.null_rate_worst_column,
                 "null_delta": signals.null_delta,
+                "row_count_delta": signals.row_count_delta,
+                "missing_columns": signals.missing_columns,
                 "worst_signal": signals.worst_signal(),
             },
             "recent_history": history_summary,
@@ -110,7 +115,7 @@ async def base_interpret(
         storage: StorageBackend instance
 
     Returns:
-        InterpretationResult with severity, summary, and drift_signals populated.
+        InterpretationResult with severity, summary, and dataset_drift_summary populated.
     """
     dataset_id = job["dataset_id"]
     job_id = job["job_id"]
@@ -156,7 +161,7 @@ async def base_interpret(
     from lakesense.sketches.signals import compute_profile_signals
 
     # --- Step 3: build baselines and compute signals per column ---
-    all_signals: list[DriftSignals] = []
+    all_signals: dict[str, DriftSignals] = {}
 
     # split records by type
     sketch_records = [r for r in current_records if r.sketch_type != "profile"]
@@ -173,18 +178,41 @@ async def base_interpret(
             logger.debug("no baseline for %s/%s — first run?", rec.column, rec.sketch_type)
             continue
         signals = compute_signals(current=rec, baseline=baseline)
-        all_signals.append(signals)
+        all_signals[rec.column] = signals
 
     # profile-based signals — compare current profiles to baseline profiles
+    dataset_level = DatasetDriftSummary()
     if profile_records:
         hist_profile_records = [r for r in historical if r.sketch_type == "profile"]
         if hist_profile_records:
             current_profiles = [sketch_record_to_profile(r) for r in profile_records]
             baseline_profiles = [sketch_record_to_profile(r) for r in hist_profile_records]
-            profile_signals = compute_profile_signals(current_profiles, baseline_profiles)
-            all_signals.append(profile_signals)
 
-    if not all_signals:
+            # per-column profile signals — merge into all_signals
+            profile_signals = compute_profile_signals(current_profiles, baseline_profiles)
+            for col, psig in profile_signals.items():
+                if col in all_signals:
+                    existing = all_signals[col]
+                    if psig.max_null_rate_delta is not None:
+                        existing.max_null_rate_delta = psig.max_null_rate_delta
+                    if psig.bool_true_rate_delta is not None:
+                        existing.bool_true_rate_delta = psig.bool_true_rate_delta
+                    if psig.categorical_top_shift is not None:
+                        existing.categorical_top_shift = psig.categorical_top_shift
+                    if psig.range_min_delta is not None:
+                        existing.range_min_delta = psig.range_min_delta
+                else:
+                    all_signals[col] = psig
+
+            # dataset-level: schema drift + row count (no column attribution)
+            cur_cols = {p.column for p in current_profiles}
+            base_cols = {p.column for p in baseline_profiles}
+            dataset_level.missing_columns = sorted(base_cols - cur_cols)
+            dataset_level.new_columns = sorted(cur_cols - base_cols)
+            if current_profiles and baseline_profiles and baseline_profiles[0].row_count > 0:
+                dataset_level.row_count_delta = current_profiles[0].row_count / baseline_profiles[0].row_count
+
+    if not all_signals and not dataset_level.missing_columns:
         return InterpretationResult(
             dataset_id=dataset_id,
             job_id=job_id,
@@ -196,6 +224,10 @@ async def base_interpret(
         )
 
     agg_signals = aggregate_signals(all_signals)
+    agg_signals.missing_columns = dataset_level.missing_columns
+    agg_signals.new_columns = dataset_level.new_columns
+    if dataset_level.row_count_delta is not None:
+        agg_signals.row_count_delta = dataset_level.row_count_delta
 
     # --- Step 4: heuristic severity (always runs, cheap) ---
     severity = _heuristic_severity(agg_signals)
@@ -208,7 +240,7 @@ async def base_interpret(
             executed_at=executed_at,
             severity=severity,
             summary=f"heuristic: {agg_signals.worst_signal()}",
-            drift_signals=agg_signals,
+            dataset_drift_summary=agg_signals,
             baseline_config=baseline_cfg.to_dict(),
         )
 
@@ -234,7 +266,7 @@ async def base_interpret(
             executed_at=executed_at,
             severity=severity,
             summary=f"heuristic (no API key): {agg_signals.worst_signal()}",
-            drift_signals=agg_signals,
+            dataset_drift_summary=agg_signals,
             baseline_config=baseline_cfg.to_dict(),
         )
 
@@ -258,13 +290,13 @@ async def base_interpret(
         executed_at=executed_at,
         severity=severity,
         summary=summary,
-        drift_signals=agg_signals,
+        dataset_drift_summary=agg_signals,
         baseline_config=baseline_cfg.to_dict(),
         metadata={"reasoning": reasoning},
     )
 
 
-def _heuristic_severity(signals: DriftSignals) -> Severity:
+def _heuristic_severity(signals: DatasetDriftSummary) -> Severity:
     """Fallback severity when no LLM API key is configured."""
     # 1. Schema / Structural drift
     if signals.missing_columns:

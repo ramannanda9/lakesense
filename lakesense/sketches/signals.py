@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from lakesense.core.result import DriftSignals
+from lakesense.core.result import DatasetDriftSummary, DriftSignals
 from lakesense.sketches.compute import SketchRecord, hll_from_blob
 from lakesense.sketches.merge import BaselineSketch
 
@@ -41,7 +41,7 @@ def compute_signals(
     baseline: BaselineSketch,
 ) -> DriftSignals:
     """
-    Compute drift signals by comparing current sketch to baseline.
+    Compute per-column drift signals by comparing current sketch to baseline.
 
     Args:
         current:  SketchRecord from the current job run
@@ -51,9 +51,6 @@ def compute_signals(
         DriftSignals with all applicable fields populated.
     """
     signals = DriftSignals()
-
-    # null rate delta vs baseline null_rate (if baseline carries metadata)
-    # populated by caller if baseline scalar metadata is available
 
     if current.sketch_type == "minhash":
         from datasketches import theta_jaccard_similarity
@@ -93,11 +90,9 @@ def compute_signals(
 
         import contextlib
 
-        # 1. Evaluate Probability Distribution Space exactly
         with contextlib.suppress(Exception):
             signals.ks_test_divergent = bool(ks_test(sk_cur, sk_base, 0.05))
 
-        # 2. Extract specific fixed latency shifts
         shifts: dict[str, float] = {}
         if not sk_cur.is_empty() and not sk_base.is_empty():
             cq = sk_cur.get_quantiles([0.5, 0.9, 0.99])
@@ -114,125 +109,107 @@ def compute_signals(
     return signals
 
 
-def aggregate_signals(signal_list: list[DriftSignals]) -> DriftSignals:
+def aggregate_signals(signals: dict[str, DriftSignals]) -> DatasetDriftSummary:
     """
-    Aggregate signals across multiple columns into a single summary.
-    Takes the worst (most drifted) value for each metric.
-    Used when interpreting multi-column datasets at the job level.
+    Aggregate per-column signals into a dataset-level summary.
+    Records which column produced the worst value for each metric.
+
+    Args:
+        signals: mapping of column_name -> DriftSignals
     """
-    agg = DriftSignals()
+    summary = DatasetDriftSummary()
 
-    jaccard_deltas = [s.jaccard_delta for s in signal_list if s.jaccard_delta is not None]
-    if jaccard_deltas:
-        agg.jaccard_delta = min(jaccard_deltas)  # most negative = worst drift
+    jaccard_pairs = [(col, s.jaccard_delta) for col, s in signals.items() if s.jaccard_delta is not None]
+    if jaccard_pairs:
+        worst_col, worst_val = min(jaccard_pairs, key=lambda p: p[1])
+        summary.jaccard_delta = worst_val
+        summary.jaccard_worst_column = worst_col
 
-    card_ratios = [s.cardinality_ratio for s in signal_list if s.cardinality_ratio is not None]
-    if card_ratios:
-        # deviation from 1.0 — furthest from 1.0 is worst
-        agg.cardinality_ratio = max(card_ratios, key=lambda r: abs(r - 1.0))
+    card_pairs = [(col, s.cardinality_ratio) for col, s in signals.items() if s.cardinality_ratio is not None]
+    if card_pairs:
+        worst_col, worst_val = max(card_pairs, key=lambda p: abs(p[1] - 1.0))
+        summary.cardinality_ratio = worst_val
+        summary.cardinality_worst_column = worst_col
 
     all_shifts: dict[str, list[float]] = {}
-    for s in signal_list:
+    for s in signals.values():
         for k, v in s.quantile_shifts.items():
             all_shifts.setdefault(k, []).append(v)
-    agg.quantile_shifts = {k: max(vs, key=abs) for k, vs in all_shifts.items()}
+    summary.quantile_shifts = {k: max(vs, key=abs) for k, vs in all_shifts.items()}
 
-    if any(s.ks_test_divergent for s in signal_list):
-        agg.ks_test_divergent = True
+    if any(s.ks_test_divergent for s in signals.values()):
+        summary.ks_test_divergent = True
 
-    null_rates = [s.null_rate for s in signal_list if s.null_rate is not None]
-    if null_rates:
-        agg.null_rate = max(null_rates)
+    null_pairs = [(col, s.max_null_rate_delta) for col, s in signals.items() if s.max_null_rate_delta is not None]
+    if null_pairs:
+        worst_col, worst_val = max(null_pairs, key=lambda p: abs(p[1]))
+        summary.max_null_rate_delta = worst_val
+        summary.null_rate_worst_column = worst_col
 
-    # propagate profile-level signals (already aggregated upstream)
-    for s in signal_list:
-        if s.max_null_rate_delta is not None:
-            curr = agg.max_null_rate_delta or 0.0
-            agg.max_null_rate_delta = max(curr, s.max_null_rate_delta, key=abs)
-        if s.row_count_delta is not None:
-            agg.row_count_delta = s.row_count_delta
-        if s.missing_columns:
-            agg.missing_columns = s.missing_columns
-        if s.new_columns:
-            agg.new_columns = s.new_columns
-        if s.bool_true_rate_delta is not None:
-            curr = agg.bool_true_rate_delta or 0.0
-            agg.bool_true_rate_delta = max(curr, s.bool_true_rate_delta, key=abs)
-        if s.categorical_top_shift is not None:
-            curr = agg.categorical_top_shift or 0.0
-            agg.categorical_top_shift = max(curr, s.categorical_top_shift)
+    bool_pairs = [(col, s.bool_true_rate_delta) for col, s in signals.items() if s.bool_true_rate_delta is not None]
+    if bool_pairs:
+        worst_col, worst_val = max(bool_pairs, key=lambda p: abs(p[1]))
+        summary.bool_true_rate_delta = worst_val
+        summary.bool_rate_worst_column = worst_col
 
-    return agg
+    cat_pairs = [(col, s.categorical_top_shift) for col, s in signals.items() if s.categorical_top_shift is not None]
+    if cat_pairs:
+        worst_col, worst_val = max(cat_pairs, key=lambda p: p[1])
+        summary.categorical_top_shift = worst_val
+        summary.categorical_worst_column = worst_col
+
+    range_pairs = [(col, s.range_min_delta) for col, s in signals.items() if s.range_min_delta is not None]
+    if range_pairs:
+        worst_col, worst_val = max(range_pairs, key=lambda p: abs(p[1]))
+        summary.range_min_delta = worst_val
+        summary.range_worst_column = worst_col
+
+    return summary
 
 
 def compute_profile_signals(
     current_profiles: list[ColumnProfile],
     baseline_profiles: list[ColumnProfile],
-) -> DriftSignals:
+) -> dict[str, DriftSignals]:
     """
-    Compute drift signals by comparing current ColumnProfiles to baseline.
-    Returns a single DriftSignals with the worst values across all columns.
+    Compute per-column drift signals from ColumnProfiles.
+    Returns one DriftSignals per common column — no dataset-level signals
+    (schema drift and row count are computed in base_interpret directly).
 
     Args:
         current_profiles:  profiles from the current run
         baseline_profiles: profiles from the merged baseline
 
     Returns:
-        DriftSignals populated with profile-based metrics.
+        dict mapping column_name -> DriftSignals
     """
     from lakesense.sketches.profile import ColumnProfile  # noqa: F401 — type ref
-
-    signals = DriftSignals()
 
     baseline_by_col: dict[str, ColumnProfile] = {p.column: p for p in baseline_profiles}
     current_by_col: dict[str, ColumnProfile] = {p.column: p for p in current_profiles}
 
-    # schema drift
-    signals.missing_columns = [c for c in baseline_by_col if c not in current_by_col]
-    signals.new_columns = [c for c in current_by_col if c not in baseline_by_col]
-
-    # row count ratio across dataset (use first common column as proxy)
     common_cols = [c for c in current_by_col if c in baseline_by_col]
-    if common_cols:
-        col0 = common_cols[0]
-        cur_rows = current_by_col[col0].row_count
-        base_rows = baseline_by_col[col0].row_count
-        if base_rows > 0:
-            signals.row_count_delta = cur_rows / base_rows
-
-    # per-column metrics — collect worst across all columns
-    null_rate_deltas: list[float] = []
-    bool_rate_deltas: list[float] = []
-    cat_shifts: list[float] = []
+    per_column: dict[str, DriftSignals] = {}
 
     for col in common_cols:
         cur = current_by_col[col]
         base = baseline_by_col[col]
+        col_signals = DriftSignals()
 
-        # null rate delta
-        null_delta = cur.null_rate - base.null_rate
-        null_rate_deltas.append(abs(null_delta))
+        col_signals.max_null_rate_delta = abs(cur.null_rate - base.null_rate)
 
-        # boolean ratio delta
         if cur.bool_true_rate is not None and base.bool_true_rate is not None:
-            bool_rate_deltas.append(abs(cur.bool_true_rate - base.bool_true_rate))
+            col_signals.bool_true_rate_delta = abs(cur.bool_true_rate - base.bool_true_rate)
 
-        # categorical top-N overlap
         if cur.top_values and base.top_values:
             cur_vals = {v for v, _ in cur.top_values}
             base_vals = {v for v, _ in base.top_values}
             overlap = len(cur_vals & base_vals) / max(len(base_vals), 1)
-            cat_shifts.append(1.0 - overlap)  # 0 = identical, 1 = no overlap
+            col_signals.categorical_top_shift = 1.0 - overlap
 
-        # integer range violations — negatives appeared where there were none
         if cur.int_negative_count is not None and base.int_negative_count == 0 and cur.int_negative_count > 0:
-            signals.range_min_delta = float(cur.numeric_min or 0)
+            col_signals.range_min_delta = float(cur.numeric_min or 0)
 
-    if null_rate_deltas:
-        signals.max_null_rate_delta = max(null_rate_deltas)
-    if bool_rate_deltas:
-        signals.bool_true_rate_delta = max(bool_rate_deltas)
-    if cat_shifts:
-        signals.categorical_top_shift = max(cat_shifts)
+        per_column[col] = col_signals
 
-    return signals
+    return per_column

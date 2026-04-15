@@ -134,13 +134,13 @@ class SlackAlertPlugin(SketchPlugin):
                 }
             )
 
-        if result.drift_signals.worst_signal() != "no signals":
+        if result.dataset_drift_summary.worst_signal() != "no signals":
             blocks.append(
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*Drift signals:*\n`{result.drift_signals.worst_signal()}`",
+                        "text": f"*Drift signals:*\n`{result.dataset_drift_summary.worst_signal()}`",
                     },
                 }
             )

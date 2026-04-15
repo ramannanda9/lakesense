@@ -27,8 +27,8 @@ class Severity(str, Enum):
 @dataclass
 class DriftSignals:
     """
-    Derived metrics computed by comparing current sketches to baseline.
-    All fields are optional — populated based on which sketch types are configured.
+    Per-column drift metrics computed by comparing a single column's sketch to baseline.
+    All fields are optional — populated based on which sketch type was computed.
     """
 
     # MinHash / Jaccard
@@ -51,14 +51,10 @@ class DriftSignals:
     heavy_hitter_overlap: float | None = None
 
     # Raw scalar metrics
-    row_count: int | None = None
     null_rate: float | None = None
     null_delta: float | None = None
 
-    # Row count change (from profile)
-    row_count_delta: float | None = None  # ratio: current / baseline
-
-    # Null rate change per column (from profile) — worst across all columns
+    # Null rate change (from profile)
     max_null_rate_delta: float | None = None
 
     # Integer / float range violations (from profile)
@@ -66,7 +62,6 @@ class DriftSignals:
     range_max_delta: float | None = None  # current_max - baseline_max
 
     # Categorical distribution shift (from profile)
-    # Proportion of top-N values that changed between baseline and current
     categorical_top_shift: float | None = None
 
     # Boolean ratio change (from profile)
@@ -75,33 +70,74 @@ class DriftSignals:
     # String length change (from profile)
     str_mean_len_delta: float | None = None
 
-    # Columns missing vs baseline (schema drift)
+
+@dataclass
+class DatasetDriftSummary:
+    """
+    Dataset-level drift summary produced by aggregate_signals.
+    Carries the worst value per metric and which column it came from.
+    Dataset-level signals (schema drift, row count) have no column attribution.
+    """
+
+    # Sketch signals — per-metric worst value + column attribution
+    jaccard_delta: float | None = None
+    jaccard_worst_column: str | None = None
+
+    cardinality_ratio: float | None = None
+    cardinality_worst_column: str | None = None
+
+    quantile_shifts: dict[str, float] = field(default_factory=dict)
+    ks_test_divergent: bool | None = None
+
+    # Profile signals — per-metric worst value + column attribution
+    max_null_rate_delta: float | None = None
+    null_rate_worst_column: str | None = None
+
+    bool_true_rate_delta: float | None = None
+    bool_rate_worst_column: str | None = None
+
+    categorical_top_shift: float | None = None
+    categorical_worst_column: str | None = None
+
+    range_min_delta: float | None = None
+    range_worst_column: str | None = None
+
+    # Dataset-level — no column attribution
+    row_count_delta: float | None = None
     missing_columns: list[str] = field(default_factory=list)
     new_columns: list[str] = field(default_factory=list)
 
+    # Pass-through scalar (used by storage/agent)
+    null_delta: float | None = None
+
     def worst_signal(self) -> str:
-        """Human-readable summary of the most significant drift signal."""
-        signals = []
+        """Human-readable summary of the most significant drift signals with column attribution."""
+        parts = []
         if self.jaccard_delta is not None:
-            signals.append(f"jaccard_delta={self.jaccard_delta:.3f}")
+            col = f" on {self.jaccard_worst_column}" if self.jaccard_worst_column else ""
+            parts.append(f"jaccard_delta={self.jaccard_delta:.3f}{col}")
         if self.cardinality_ratio is not None:
-            signals.append(f"cardinality_ratio={self.cardinality_ratio:.2f}")
+            col = f" on {self.cardinality_worst_column}" if self.cardinality_worst_column else ""
+            parts.append(f"cardinality_ratio={self.cardinality_ratio:.2f}{col}")
         if self.quantile_shifts:
             worst_q = max(self.quantile_shifts, key=lambda k: abs(self.quantile_shifts[k]))
-            signals.append(f"{worst_q}_shift={self.quantile_shifts[worst_q]:.3f}")
+            parts.append(f"{worst_q}_shift={self.quantile_shifts[worst_q]:.3f}")
         if self.ks_test_divergent:
-            signals.append("distribution_divergent=True")
+            parts.append("distribution_divergent=True")
         if self.max_null_rate_delta is not None and self.max_null_rate_delta > 0.01:
-            signals.append(f"null_rate_delta={self.max_null_rate_delta:.3f}")
+            col = f" on {self.null_rate_worst_column}" if self.null_rate_worst_column else ""
+            parts.append(f"null_rate_delta={self.max_null_rate_delta:.3f}{col}")
         if self.row_count_delta is not None and abs(self.row_count_delta - 1.0) > 0.05:
-            signals.append(f"row_count_ratio={self.row_count_delta:.2f}")
+            parts.append(f"row_count_ratio={self.row_count_delta:.2f}")
         if self.missing_columns:
-            signals.append(f"missing_columns={self.missing_columns}")
+            parts.append(f"missing_columns={self.missing_columns}")
         if self.bool_true_rate_delta is not None and self.bool_true_rate_delta > 0.05:
-            signals.append(f"bool_rate_delta={self.bool_true_rate_delta:.3f}")
+            col = f" on {self.bool_rate_worst_column}" if self.bool_rate_worst_column else ""
+            parts.append(f"bool_rate_delta={self.bool_true_rate_delta:.3f}{col}")
         if self.categorical_top_shift is not None and self.categorical_top_shift > 0.2:
-            signals.append(f"categorical_shift={self.categorical_top_shift:.2f}")
-        return ", ".join(signals) if signals else "no signals"
+            col = f" on {self.categorical_worst_column}" if self.categorical_worst_column else ""
+            parts.append(f"categorical_shift={self.categorical_top_shift:.2f}{col}")
+        return ", ".join(parts) if parts else "no signals"
 
 
 @dataclass
@@ -110,7 +146,7 @@ class InterpretationResult:
     The single data contract that flows through the entire lakesense pipeline.
 
     Tier 1 (base interpreter) sets:
-        dataset_id, job_id, run_ts, severity, summary, drift_signals, baseline_config
+        dataset_id, job_id, run_ts, severity, summary, dataset_drift_summary, baseline_config
 
     Tier 2 plugins enrich:
         root_cause, affected_urns, owners, agent_trace, metadata
@@ -127,7 +163,7 @@ class InterpretationResult:
     # Tier 1 output — always populated after base interpretation
     severity: Severity = Severity.OK
     summary: str = ""
-    drift_signals: DriftSignals = field(default_factory=DriftSignals)
+    dataset_drift_summary: DatasetDriftSummary = field(default_factory=DatasetDriftSummary)
     baseline_config: dict[str, Any] = field(default_factory=dict)
 
     # Tier 2 enrichment — populated by agent plugin
@@ -154,10 +190,24 @@ class InterpretationResult:
             "executed_at": self.executed_at.isoformat(),
             "severity": self.severity.value,
             "summary": self.summary,
-            "jaccard_delta": self.drift_signals.jaccard_delta,
-            "cardinality_ratio": self.drift_signals.cardinality_ratio,
-            "ks_test_divergent": self.drift_signals.ks_test_divergent,
-            "null_delta": self.drift_signals.null_delta,
+            "jaccard_delta": self.dataset_drift_summary.jaccard_delta,
+            "jaccard_worst_column": self.dataset_drift_summary.jaccard_worst_column,
+            "cardinality_ratio": self.dataset_drift_summary.cardinality_ratio,
+            "cardinality_worst_column": self.dataset_drift_summary.cardinality_worst_column,
+            "quantile_shifts": self.dataset_drift_summary.quantile_shifts,
+            "max_null_rate_delta": self.dataset_drift_summary.max_null_rate_delta,
+            "null_rate_worst_column": self.dataset_drift_summary.null_rate_worst_column,
+            "bool_true_rate_delta": self.dataset_drift_summary.bool_true_rate_delta,
+            "bool_rate_worst_column": self.dataset_drift_summary.bool_rate_worst_column,
+            "categorical_top_shift": self.dataset_drift_summary.categorical_top_shift,
+            "categorical_worst_column": self.dataset_drift_summary.categorical_worst_column,
+            "range_min_delta": self.dataset_drift_summary.range_min_delta,
+            "range_worst_column": self.dataset_drift_summary.range_worst_column,
+            "ks_test_divergent": self.dataset_drift_summary.ks_test_divergent,
+            "null_delta": self.dataset_drift_summary.null_delta,
+            "row_count_delta": self.dataset_drift_summary.row_count_delta,
+            "missing_columns": self.dataset_drift_summary.missing_columns,
+            "new_columns": self.dataset_drift_summary.new_columns,
             "root_cause": self.root_cause,
             "affected_urns": self.affected_urns,
             "owners": self.owners,
@@ -167,11 +217,25 @@ class InterpretationResult:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> InterpretationResult:
-        signals = DriftSignals(
+        signals = DatasetDriftSummary(
             jaccard_delta=d.get("jaccard_delta"),
+            jaccard_worst_column=d.get("jaccard_worst_column"),
             cardinality_ratio=d.get("cardinality_ratio"),
+            cardinality_worst_column=d.get("cardinality_worst_column"),
+            quantile_shifts=d.get("quantile_shifts") or {},
+            max_null_rate_delta=d.get("max_null_rate_delta"),
+            null_rate_worst_column=d.get("null_rate_worst_column"),
+            bool_true_rate_delta=d.get("bool_true_rate_delta"),
+            bool_rate_worst_column=d.get("bool_rate_worst_column"),
+            categorical_top_shift=d.get("categorical_top_shift"),
+            categorical_worst_column=d.get("categorical_worst_column"),
+            range_min_delta=d.get("range_min_delta"),
+            range_worst_column=d.get("range_worst_column"),
             ks_test_divergent=d.get("ks_test_divergent"),
             null_delta=d.get("null_delta"),
+            row_count_delta=d.get("row_count_delta"),
+            missing_columns=d.get("missing_columns") or [],
+            new_columns=d.get("new_columns") or [],
         )
 
         def _parse_ts(val: Any) -> datetime:
@@ -191,7 +255,7 @@ class InterpretationResult:
             executed_at=_parse_ts(executed_at_raw),
             severity=Severity(d["severity"]),
             summary=d.get("summary", ""),
-            drift_signals=signals,
+            dataset_drift_summary=signals,
             root_cause=d.get("root_cause"),
             affected_urns=d.get("affected_urns", []),
             owners=d.get("owners", []),

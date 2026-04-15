@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from lakesense.core.result import DriftSignals, InterpretationResult, Severity
+from lakesense.core.result import DatasetDriftSummary, InterpretationResult, Severity
 from lakesense.plugins.slack import SlackAlertPlugin
 
 
@@ -54,7 +54,7 @@ class TestSlackPayload:
             severity=Severity.ALERT,
             summary="Jaccard dropped 40%",
             root_cause="upstream schema migration",
-            drift_signals=DriftSignals(jaccard_delta=-0.4),
+            dataset_drift_summary=DatasetDriftSummary(jaccard_delta=-0.4),
             owners=["U001", "U002"],
             affected_urns=["urn:li:dataset:parent_table"],
         )

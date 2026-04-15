@@ -116,7 +116,14 @@ async def main():
         }
     )
     print(f"  drifted: severity={result.severity.value:5s}  {result.summary}")
-    print(f"  signals: {result.drift_signals.worst_signal()}")
+    s = result.dataset_drift_summary
+    print(f"  signals: {s.worst_signal()}")
+    if s.jaccard_worst_column:
+        print(f"  jaccard_delta={s.jaccard_delta:.3f} on '{s.jaccard_worst_column}'")
+    if s.null_rate_worst_column:
+        print(f"  null_rate_delta={s.max_null_rate_delta:.3f} on '{s.null_rate_worst_column}'")
+    if s.missing_columns:
+        print(f"  missing_columns={s.missing_columns}")
 
     # --- Query the results with DuckDB ---
     print("\n=== All interpretation results ===")
