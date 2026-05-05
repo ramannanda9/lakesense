@@ -2,8 +2,7 @@
 OpenLineage DataQualityAssertions facet converter.
 
 Converts a lakesense InterpretationResult into an OpenLineage-compatible
-DataQualityAssertionsDatasetFacet dict (or typed object if openlineage-python
-is installed). Callers attach this to their own OL RunEvent.
+DataQualityAssertionsDatasetFacet dict. Callers attach this to their own OL RunEvent.
 
 Each metric produces one assertion for the worst column only — per-column
 breakdowns require inspecting the InterpretationResult directly.
@@ -215,15 +214,12 @@ def to_openlineage_assertions(
 ) -> dict[str, Any]:
     """Convert an InterpretationResult into an OL DataQualityAssertionsDatasetFacet dict.
 
-    If openlineage-python is installed, returns the typed facet object instead.
-
     Args:
         result: The interpretation result to convert.
         thresholds: Custom thresholds for assertion pass/fail. Defaults match _heuristic_severity warn level.
 
     Returns:
-        Dict matching the OL DataQualityAssertionsDatasetFacet JSON schema,
-        or a typed DataQualityAssertionsDatasetFacet if openlineage-python is installed.
+        Dict matching the OL DataQualityAssertionsDatasetFacet JSON schema.
     """
     t = thresholds or AssertionThresholds()
     assertions = _build_assertions(result, t)
