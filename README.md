@@ -260,6 +260,42 @@ blob, sketch = compute_minhash(values, tokenizer="char_shingle")
 
 ---
 
+## OpenLineage integration
+
+lakesense produces OpenLineage `DataQualityAssertionsDatasetFacet` dicts that you attach to your pipeline's RunEvent. This enables Write-Audit-Publish (WAP) workflows — write data to an Iceberg staging branch, run lakesense, gate the publish on the result.
+
+```bash
+pip install lakesense[openlineage]
+```
+
+```python
+from lakesense.lineage import to_openlineage_facets
+
+result = await framework.run(job)
+facets = to_openlineage_facets(result)
+# facets = {"dataQualityAssertions": {"assertions": [...], ...}}
+
+# Attach to your OL InputDataset:
+# from openlineage.client import InputDataset
+# input_ds = InputDataset(namespace="iceberg", name="user_features", facets=facets)
+```
+
+The facet includes a top-level `lakesense_quality_check` assertion (pass unless severity is ALERT) plus per-signal assertions with column attribution. Works with or without the LLM — the overall gate captures the final severity regardless of how it was computed.
+
+Custom thresholds:
+
+```python
+from lakesense.lineage import AssertionThresholds, to_openlineage_facets
+
+# Tighter thresholds for critical datasets
+facets = to_openlineage_facets(result, thresholds=AssertionThresholds(
+    jaccard_delta=-0.05,
+    null_rate_delta=0.02,
+))
+```
+
+---
+
 ## Baseline strategies
 
 ```python
@@ -304,8 +340,9 @@ class PagerDutyPlugin(SketchPlugin):
 - **v0.2** — provider-agnostic LLM interface (Anthropic + OpenAI), investigative agent with ReAct loop, DataHub lineage + search tools, Slack incident search tool, IcebergBackend with native timestamps ✅
 - **v0.2.1** — word n-gram tokenization for MinHash (replaces naive whitespace split), tokenizer consistency guards, single-sourced version ✅
 - **v0.2.2** — per-column signal attribution (`DatasetDriftSummary` with `*_worst_column` fields), schema drift + row count wired into base interpreter ✅
-- **v0.3** — DeltaLake Backend, Airflow operator, OpenLineage support
-- **v0.4** — JIRA plugin, column-level lineage
+- **v0.3** — OpenLineage DataQualityAssertions facets for WAP gating ✅
+- **v0.4** — DeltaLake Backend, Airflow operator
+- **v0.5** — JIRA plugin, column-level lineage
 
 ---
 
