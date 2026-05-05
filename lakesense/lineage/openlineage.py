@@ -5,6 +5,9 @@ Converts a lakesense InterpretationResult into an OpenLineage-compatible
 DataQualityAssertionsDatasetFacet dict (or typed object if openlineage-python
 is installed). Callers attach this to their own OL RunEvent.
 
+Each metric produces one assertion for the worst column only — per-column
+breakdowns require inspecting the InterpretationResult directly.
+
 Usage:
     from lakesense.lineage import to_openlineage_facets
 
@@ -40,12 +43,21 @@ class AssertionThresholds:
     quantile_shift: float = 0.3
 
 
+def _fmt(val: float | None, precision: int = 3) -> str:
+    """Format a numeric value for the actual/expected fields."""
+    if val is None:
+        return "None"
+    return f"{val:.{precision}f}"
+
+
 def _build_assertions(
     result: InterpretationResult,
     thresholds: AssertionThresholds,
 ) -> list[dict[str, Any]]:
     """Map DatasetDriftSummary signals to OL assertion dicts."""
-    s = result.dataset_drift_summary
+    from lakesense.core.result import DatasetDriftSummary
+
+    s = result.dataset_drift_summary or DatasetDriftSummary()
     assertions: list[dict[str, Any]] = []
 
     # Overall gate — captures final severity (heuristic + optional LLM)
@@ -54,6 +66,8 @@ def _build_assertions(
             "assertion": "lakesense_quality_check",
             "success": result.severity != Severity.ALERT,
             "column": None,
+            "expected": "severity != alert",
+            "actual": result.severity.value,
         }
     )
 
@@ -64,6 +78,8 @@ def _build_assertions(
                 "assertion": "schema_column_present",
                 "success": False,
                 "column": col,
+                "expected": "column present in current run",
+                "actual": "missing",
             }
         )
 
@@ -74,16 +90,21 @@ def _build_assertions(
                 "assertion": "schema_column_new",
                 "success": True,
                 "column": col,
+                "expected": "informational",
+                "actual": "new column appeared",
             }
         )
 
     # Row count ratio
     if s.row_count_delta is not None:
+        lo, hi = thresholds.row_count_delta_low, thresholds.row_count_delta_high
         assertions.append(
             {
                 "assertion": "row_count_ratio_within_bounds",
-                "success": thresholds.row_count_delta_low <= s.row_count_delta <= thresholds.row_count_delta_high,
+                "success": lo <= s.row_count_delta <= hi,
                 "column": None,
+                "expected": f"{lo} <= ratio <= {hi}",
+                "actual": _fmt(s.row_count_delta, 2),
             }
         )
 
@@ -94,6 +115,8 @@ def _build_assertions(
                 "assertion": "null_rate_change_within_bounds",
                 "success": s.max_null_rate_delta <= thresholds.null_rate_delta,
                 "column": s.null_rate_worst_column,
+                "expected": f"<= {thresholds.null_rate_delta}",
+                "actual": _fmt(s.max_null_rate_delta),
             }
         )
 
@@ -104,16 +127,21 @@ def _build_assertions(
                 "assertion": "jaccard_similarity_within_bounds",
                 "success": s.jaccard_delta >= thresholds.jaccard_delta,
                 "column": s.jaccard_worst_column,
+                "expected": f">= {thresholds.jaccard_delta}",
+                "actual": _fmt(s.jaccard_delta),
             }
         )
 
     # Cardinality ratio
     if s.cardinality_ratio is not None:
+        lo, hi = thresholds.cardinality_ratio_low, thresholds.cardinality_ratio_high
         assertions.append(
             {
                 "assertion": "cardinality_ratio_within_bounds",
-                "success": thresholds.cardinality_ratio_low <= s.cardinality_ratio <= thresholds.cardinality_ratio_high,
+                "success": lo <= s.cardinality_ratio <= hi,
                 "column": s.cardinality_worst_column,
+                "expected": f"{lo} <= ratio <= {hi}",
+                "actual": _fmt(s.cardinality_ratio, 2),
             }
         )
 
@@ -124,6 +152,8 @@ def _build_assertions(
                 "assertion": "distribution_ks_test_pass",
                 "success": not s.ks_test_divergent,
                 "column": None,
+                "expected": "not divergent",
+                "actual": "divergent" if s.ks_test_divergent else "not divergent",
             }
         )
 
@@ -134,6 +164,8 @@ def _build_assertions(
                 "assertion": "bool_rate_change_within_bounds",
                 "success": s.bool_true_rate_delta <= thresholds.bool_rate_delta,
                 "column": s.bool_rate_worst_column,
+                "expected": f"<= {thresholds.bool_rate_delta}",
+                "actual": _fmt(s.bool_true_rate_delta),
             }
         )
 
@@ -144,16 +176,20 @@ def _build_assertions(
                 "assertion": "categorical_distribution_stable",
                 "success": s.categorical_top_shift <= thresholds.categorical_shift,
                 "column": s.categorical_worst_column,
+                "expected": f"<= {thresholds.categorical_shift}",
+                "actual": _fmt(s.categorical_top_shift, 2),
             }
         )
 
-    # Numeric range violations
+    # Numeric range violations — negatives appeared where baseline had none
     if s.range_min_delta is not None:
         assertions.append(
             {
                 "assertion": "numeric_range_within_bounds",
-                "success": True,  # range_min_delta presence alone is informational
+                "success": False,
                 "column": s.range_worst_column,
+                "expected": "no new negative values",
+                "actual": f"min_delta={_fmt(s.range_min_delta)}",
             }
         )
 
@@ -164,6 +200,8 @@ def _build_assertions(
                 "assertion": f"quantile_{quantile}_shift_within_bounds",
                 "success": abs(shift) <= thresholds.quantile_shift,
                 "column": None,
+                "expected": f"abs(shift) <= {thresholds.quantile_shift}",
+                "actual": _fmt(shift),
             }
         )
 
@@ -198,29 +236,14 @@ def to_openlineage_assertions(
                 "assertion": a["assertion"],
                 "success": a["success"],
                 **({"column": a["column"]} if a["column"] is not None else {}),
+                **({"expected": a["expected"]} if a.get("expected") else {}),
+                **({"actual": a["actual"]} if a.get("actual") else {}),
             }
             for a in assertions
         ],
     }
 
-    try:
-        from openlineage.client.facet_v2 import (
-            DataQualityAssertionsDatasetFacet,
-            DataQualityAssertionsDatasetFacetAssertions,
-        )
-
-        return DataQualityAssertionsDatasetFacet(
-            assertions=[
-                DataQualityAssertionsDatasetFacetAssertions(
-                    assertion=a["assertion"],
-                    success=a["success"],
-                    column=a.get("column"),
-                )
-                for a in assertions
-            ],
-        )
-    except ImportError:
-        return facet_dict
+    return facet_dict
 
 
 def to_openlineage_facets(

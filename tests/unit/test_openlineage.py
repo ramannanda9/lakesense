@@ -18,16 +18,19 @@ class TestOverallGateAssertion:
         facet = to_openlineage_assertions(_result(Severity.OK))
         gate = next(a for a in facet["assertions"] if a["assertion"] == "lakesense_quality_check")
         assert gate["success"] is True
+        assert gate["actual"] == "ok"
 
     def test_warn_passes(self):
         facet = to_openlineage_assertions(_result(Severity.WARN))
         gate = next(a for a in facet["assertions"] if a["assertion"] == "lakesense_quality_check")
         assert gate["success"] is True
+        assert gate["actual"] == "warn"
 
     def test_alert_fails(self):
         facet = to_openlineage_assertions(_result(Severity.ALERT))
         gate = next(a for a in facet["assertions"] if a["assertion"] == "lakesense_quality_check")
         assert gate["success"] is False
+        assert gate["actual"] == "alert"
 
 
 class TestSchemaAssertions:
@@ -38,6 +41,7 @@ class TestSchemaAssertions:
         assert all(a["success"] is False for a in schema_asserts)
         cols = {a["column"] for a in schema_asserts}
         assert cols == {"user_id", "email"}
+        assert all(a["actual"] == "missing" for a in schema_asserts)
 
     def test_new_columns(self):
         facet = to_openlineage_assertions(_result(new_columns=["new_feat"]))
@@ -53,6 +57,8 @@ class TestSignalAssertions:
         a = next(a for a in facet["assertions"] if a["assertion"] == "jaccard_similarity_within_bounds")
         assert a["success"] is True
         assert a["column"] == "desc"
+        assert a["expected"] == ">= -0.1"
+        assert a["actual"] == "-0.050"
 
     def test_jaccard_fail(self):
         facet = to_openlineage_assertions(_result(jaccard_delta=-0.2, jaccard_worst_column="desc"))
@@ -68,6 +74,7 @@ class TestSignalAssertions:
         facet = to_openlineage_assertions(_result(cardinality_ratio=3.0, cardinality_worst_column="uid"))
         a = next(a for a in facet["assertions"] if a["assertion"] == "cardinality_ratio_within_bounds")
         assert a["success"] is False
+        assert a["actual"] == "3.00"
 
     def test_null_rate_pass(self):
         facet = to_openlineage_assertions(_result(max_null_rate_delta=0.05, null_rate_worst_column="score"))
@@ -94,11 +101,13 @@ class TestSignalAssertions:
         facet = to_openlineage_assertions(_result(ks_test_divergent=True))
         a = next(a for a in facet["assertions"] if a["assertion"] == "distribution_ks_test_pass")
         assert a["success"] is False
+        assert a["actual"] == "divergent"
 
     def test_ks_not_divergent_pass(self):
         facet = to_openlineage_assertions(_result(ks_test_divergent=False))
         a = next(a for a in facet["assertions"] if a["assertion"] == "distribution_ks_test_pass")
         assert a["success"] is True
+        assert a["actual"] == "not divergent"
 
     def test_bool_rate_fail(self):
         facet = to_openlineage_assertions(_result(bool_true_rate_delta=0.3, bool_rate_worst_column="is_active"))
@@ -110,6 +119,12 @@ class TestSignalAssertions:
         facet = to_openlineage_assertions(_result(categorical_top_shift=0.8, categorical_worst_column="status"))
         a = next(a for a in facet["assertions"] if a["assertion"] == "categorical_distribution_stable")
         assert a["success"] is False
+
+    def test_range_min_delta_fails(self):
+        facet = to_openlineage_assertions(_result(range_min_delta=-5.0, range_worst_column="amount"))
+        a = next(a for a in facet["assertions"] if a["assertion"] == "numeric_range_within_bounds")
+        assert a["success"] is False
+        assert a["column"] == "amount"
 
     def test_quantile_shifts(self):
         facet = to_openlineage_assertions(_result(quantile_shifts={"p50": 0.1, "p99": 0.5}))
@@ -126,6 +141,18 @@ class TestEmptySummary:
         assert facet["assertions"][0]["assertion"] == "lakesense_quality_check"
         assert facet["assertions"][0]["success"] is True
 
+    def test_none_drift_summary_does_not_raise(self):
+        """First-run / no-sketch results have dataset_drift_summary=None."""
+        result = InterpretationResult(
+            dataset_id="ds1",
+            job_id="j1",
+            severity=Severity.OK,
+            dataset_drift_summary=None,
+        )
+        facet = to_openlineage_assertions(result)
+        assert len(facet["assertions"]) == 1
+        assert facet["assertions"][0]["assertion"] == "lakesense_quality_check"
+
 
 class TestCustomThresholds:
     def test_tighter_jaccard(self):
@@ -133,6 +160,7 @@ class TestCustomThresholds:
         facet = to_openlineage_assertions(_result(jaccard_delta=-0.05), thresholds=t)
         a = next(a for a in facet["assertions"] if a["assertion"] == "jaccard_similarity_within_bounds")
         assert a["success"] is False  # would pass with default -0.1
+        assert a["expected"] == ">= -0.01"
 
     def test_looser_null_rate(self):
         t = AssertionThresholds(null_rate_delta=0.5)
@@ -159,6 +187,12 @@ class TestFacetStructure:
         facet = to_openlineage_assertions(_result(row_count_delta=1.0))
         row_assert = next(a for a in facet["assertions"] if a["assertion"] == "row_count_ratio_within_bounds")
         assert "column" not in row_assert
+
+    def test_expected_and_actual_present(self):
+        facet = to_openlineage_assertions(_result(jaccard_delta=-0.5, jaccard_worst_column="col"))
+        a = next(a for a in facet["assertions"] if a["assertion"] == "jaccard_similarity_within_bounds")
+        assert "expected" in a
+        assert "actual" in a
 
 
 class TestConvenienceWrapper:
