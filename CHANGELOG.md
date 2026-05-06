@@ -9,11 +9,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - `lakesense.lineage` — OpenLineage `DataQualityAssertionsDatasetFacet` converter for WAP gating
-- `to_openlineage_facets(result)` / `to_openlineage_assertions(result)` — standalone functions, dict-first with optional typed OL object upgrade
+- `to_openlineage_facets(result)` / `to_openlineage_assertions(result)` — standalone functions returning plain dicts matching the OL JSON schema (no extra dependency required)
 - `AssertionThresholds` — configurable pass/fail thresholds (defaults match `_heuristic_severity` warn level)
 - Top-level `lakesense_quality_check` assertion driven by `result.severity` (captures heuristic + optional LLM verdict)
 - Per-signal assertions with column attribution (jaccard, cardinality, null rate, KS test, etc.)
-- `openlineage-python` optional dependency (`pip install lakesense[openlineage]`)
 - `expected` / `actual` diagnostic fields on every assertion dict for richer OL event context
 
 ## [0.2.2] — 2026-04-14

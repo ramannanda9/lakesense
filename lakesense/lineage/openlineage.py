@@ -54,9 +54,7 @@ def _build_assertions(
     thresholds: AssertionThresholds,
 ) -> list[dict[str, Any]]:
     """Map DatasetDriftSummary signals to OL assertion dicts."""
-    from lakesense.core.result import DatasetDriftSummary
-
-    s = result.dataset_drift_summary or DatasetDriftSummary()
+    s = result.dataset_drift_summary
     assertions: list[dict[str, Any]] = []
 
     # Overall gate — captures final severity (heuristic + optional LLM)
