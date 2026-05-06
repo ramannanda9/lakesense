@@ -264,10 +264,6 @@ blob, sketch = compute_minhash(values, tokenizer="char_shingle")
 
 lakesense produces OpenLineage `DataQualityAssertionsDatasetFacet` dicts that you attach to your pipeline's RunEvent. This enables Write-Audit-Publish (WAP) workflows — write data to an Iceberg staging branch, run lakesense, gate the publish on the result.
 
-```bash
-pip install lakesense[openlineage]
-```
-
 ```python
 from lakesense.lineage import to_openlineage_facets
 

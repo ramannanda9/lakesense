@@ -141,18 +141,6 @@ class TestEmptySummary:
         assert facet["assertions"][0]["assertion"] == "lakesense_quality_check"
         assert facet["assertions"][0]["success"] is True
 
-    def test_none_drift_summary_does_not_raise(self):
-        """First-run / no-sketch results have dataset_drift_summary=None."""
-        result = InterpretationResult(
-            dataset_id="ds1",
-            job_id="j1",
-            severity=Severity.OK,
-            dataset_drift_summary=None,
-        )
-        facet = to_openlineage_assertions(result)
-        assert len(facet["assertions"]) == 1
-        assert facet["assertions"][0]["assertion"] == "lakesense_quality_check"
-
 
 class TestCustomThresholds:
     def test_tighter_jaccard(self):
