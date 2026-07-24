@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784928596744,
+  "lastUpdate": 1784929146241,
   "repoUrl": "https://github.com/ramannanda9/lakesense",
   "entries": {
     "Benchmark": [
@@ -1589,6 +1589,233 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0003772535768440952",
             "extra": "mean: 7.206792422768403 msec\nrounds: 123"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ramannanda9@gmail.com",
+            "name": "Ramandeep Singh",
+            "username": "ramannanda9"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "53e5971d167edc70f8cc19aa124bd84a5c3926c6",
+          "message": "ci: make the release gate real and stop benchmark alerts failing the build (#14)\n\nThree gaps surfaced while shipping #13.\n\npublish.yml ran only tests/unit/, so tests/providers/ never gated a PyPI\npublish. #13 was entirely a change to sketch computation, and the test that\nverifies SparkProvider's map-reduce agrees with PandasProvider would not have\nblocked its release. Mirrors ci.yml's test-providers matrix into publish.yml and\nmakes publish depend on it.\n\nThe Spark fixture turned any JVM failure into pytest.skip, including in CI. That\nis how the equivalence test came to be silently skipping — a green run meant\nnothing. It now raises when CI is set, and still skips locally where a missing\nJVM is a normal state.\n\nThe benchmark job declared only contents: write, but comment-on-alert posts via\nthe issues API. Every fired alert failed the job with \"Resource not accessible\nby integration\" despite fail-on-alert: false. Adds pull-requests: write and\nissues: write.\n\nThe alert that triggered this was noise — test_write_sketches times only the\nwrite, while sketch computation happens in setup, and local medians were faster\non all three sizes. Leaving alert-threshold alone: with permissions fixed an\nalert now comments instead of failing, which is the intended behavior.",
+          "timestamp": "2026-07-24T14:36:50-07:00",
+          "tree_id": "badb6b646447ea8cff0f4d2df369933c1ca0dadb",
+          "url": "https://github.com/ramannanda9/lakesense/commit/53e5971d167edc70f8cc19aa124bd84a5c3926c6"
+        },
+        "date": 1784929145283,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_minhash[1000]",
+            "value": 1282.5244467323278,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000016779567551308765",
+            "extra": "mean: 779.7122328138415 usec\nrounds: 1091"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_minhash[10000]",
+            "value": 121.63644217494719,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000582721633462425",
+            "extra": "mean: 8.221220401709223 msec\nrounds: 117"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_minhash[100000]",
+            "value": 12.333755405063675,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00048558938090300643",
+            "extra": "mean: 81.07830641666898 msec\nrounds: 12"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_hll[1000]",
+            "value": 5773.97142171137,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005141811763016214",
+            "extra": "mean: 173.1910200039761 usec\nrounds: 5249"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_hll[10000]",
+            "value": 600.2350585970828,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000026635238929707496",
+            "extra": "mean: 1.666013981817856 msec\nrounds: 605"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_hll[100000]",
+            "value": 64.82839602332959,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011717814568214062",
+            "extra": "mean: 15.425339223881663 msec\nrounds: 67"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_kll[1000]",
+            "value": 15626.900534609851,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005967493266303658",
+            "extra": "mean: 63.99221635699536 usec\nrounds: 4414"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_kll[10000]",
+            "value": 1358.7628733558488,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00002484246076076918",
+            "extra": "mean: 735.9635883560885 usec\nrounds: 979"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_kll[100000]",
+            "value": 143.81681994108806,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000024960151016251406",
+            "extra": "mean: 6.953289611115249 msec\nrounds: 18"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_minhash[7]",
+            "value": 3516.7248108651693,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000006620764977024361",
+            "extra": "mean: 284.3554880695895 usec\nrounds: 2766"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_minhash[30]",
+            "value": 1402.4765726531086,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000007856621137263237",
+            "extra": "mean: 713.0243880710741 usec\nrounds: 1291"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_minhash[90]",
+            "value": 1013.1983069746539,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000007987519132475283",
+            "extra": "mean: 986.9736191979405 usec\nrounds: 948"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_hll[7]",
+            "value": 17447.01160451232,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000029842891833581016",
+            "extra": "mean: 57.31640596498314 usec\nrounds: 8885"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_hll[30]",
+            "value": 6038.791503439448,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001271401020547597",
+            "extra": "mean: 165.59604673061506 usec\nrounds: 5307"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_hll[90]",
+            "value": 2529.9468598299927,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00000935571910265282",
+            "extra": "mean: 395.26521915452327 usec\nrounds: 2318"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_build_baseline_rolling[7]",
+            "value": 3654.93235954981,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000007743632766063983",
+            "extra": "mean: 273.6028745886759 usec\nrounds: 2735"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_build_baseline_rolling[30]",
+            "value": 1379.4478475666951,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000010626729915142255",
+            "extra": "mean: 724.9277323270829 usec\nrounds: 1259"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_build_baseline_rolling[90]",
+            "value": 1003.7622915313957,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000008893372913735234",
+            "extra": "mean: 996.2518102511544 usec\nrounds: 917"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProfiling::test_profile_dataframe[1000]",
+            "value": 166.6229031611962,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003460154076256655",
+            "extra": "mean: 6.001575899998386 msec\nrounds: 100"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProfiling::test_profile_dataframe[10000]",
+            "value": 82.54824528226914,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013513785840958695",
+            "extra": "mean: 12.1141278846153 msec\nrounds: 78"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProfiling::test_profile_dataframe[100000]",
+            "value": 11.93304976747581,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00048628990644800497",
+            "extra": "mean: 83.80087400000254 msec\nrounds: 12"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProviderE2E::test_pandas_provider_sketch[1000]",
+            "value": 77.64583325977654,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00014735269009155146",
+            "extra": "mean: 12.878991157894335 msec\nrounds: 76"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProviderE2E::test_pandas_provider_sketch[10000]",
+            "value": 15.237876872062465,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005048299230682867",
+            "extra": "mean: 65.62594043750458 msec\nrounds: 16"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_write_sketches[10]",
+            "value": 920.3783289815101,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000253542654587946",
+            "extra": "mean: 1.0865097194396125 msec\nrounds: 499"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_write_sketches[100]",
+            "value": 468.195294791737,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00024055612226489486",
+            "extra": "mean: 2.135860849359498 msec\nrounds: 312"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_write_sketches[500]",
+            "value": 131.79545554949325,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005573098567400239",
+            "extra": "mean: 7.58751503100552 msec\nrounds: 129"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_read_sketches[10]",
+            "value": 764.7471308085858,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007075759591594432",
+            "extra": "mean: 1.3076217741970155 msec\nrounds: 31"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_read_sketches[100]",
+            "value": 356.782497831759,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015040434213942015",
+            "extra": "mean: 2.8028280705393533 msec\nrounds: 241"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_read_sketches[500]",
+            "value": 82.72905255135316,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0014268415006309767",
+            "extra": "mean: 12.08765202985083 msec\nrounds: 67"
           }
         ]
       }
