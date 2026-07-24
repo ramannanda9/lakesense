@@ -218,3 +218,87 @@ class TestSignals:
         rec_identical = SketchRecord("ds", "job", "col", "kll", cur_blob2)
         sig_identical = compute_signals(rec_identical, baseline)
         assert sig_identical.ks_test_divergent is False
+
+
+class TestStreamingInputs:
+    """
+    compute_* accept any Iterable, and StreamingProvider documents "strictly O(1)
+    memory" over file-backed generators. These pin both halves of that contract:
+    generators must produce the same sketches as materialized input, and must not
+    make peak memory grow with row count.
+    """
+
+    def test_generator_matches_list_kll(self):
+        vals = [float(i % 977) for i in range(50_000)]
+        _, from_list = compute_kll(vals)
+        _, from_gen = compute_kll(v for v in vals)
+        for key in ("mean", "std", "min", "max"):
+            assert from_gen[key] == pytest.approx(from_list[key], rel=1e-9)
+
+    def test_generator_matches_list_minhash(self):
+        vals = [f"row {i % 300} text" for i in range(50_000)]
+        for tokenizer in ("word_ngram", "char_shingle", "whitespace"):
+            _, from_list = compute_minhash(vals, tokenizer=tokenizer)
+            _, from_gen = compute_minhash((v for v in vals), tokenizer=tokenizer)
+            assert from_gen.get_estimate() == pytest.approx(from_list.get_estimate(), rel=1e-9)
+
+    def test_kll_moments_match_numpy_across_block_boundary(self):
+        # _iter_float_blocks chunks one-shot iterables; the parallel-variance
+        # combination across those blocks must match a single-pass computation.
+        np = pytest.importorskip("numpy")
+        arr = np.random.default_rng(0).normal(50, 12, 200_000)  # spans several blocks
+        _, q = compute_kll(v for v in arr)
+        assert q["mean"] == pytest.approx(float(arr.mean()), rel=1e-9)
+        assert q["std"] == pytest.approx(float(arr.std()), rel=1e-9)
+
+    def test_nans_and_nones_are_dropped(self):
+        _, q = compute_kll(iter([1.0, None, 2.0, float("nan"), 3.0]))
+        assert q["mean"] == pytest.approx(2.0)
+        assert q["min"] == pytest.approx(1.0)
+        assert q["max"] == pytest.approx(3.0)
+
+    @pytest.mark.parametrize("n_rows", [500_000, 2_000_000])
+    def test_peak_memory_does_not_scale_with_rows(self, n_rows):
+        # Regression guard: materializing the input made these O(n) — 2M distinct
+        # strings peaked at 210 MB. The bound is deliberately loose so this fails
+        # only on a real return to O(n), not on allocator noise.
+        import tracemalloc
+
+        tracemalloc.start()
+        compute_kll(float(i % 1000) for i in range(n_rows))
+        _, kll_peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        tracemalloc.start()
+        compute_minhash(f"event {i} distinct" for i in range(n_rows))
+        _, minhash_peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        assert kll_peak < 32 * 1024 * 1024, f"kll peak {kll_peak / 1e6:.1f} MB scales with rows"
+        assert minhash_peak < 32 * 1024 * 1024, f"minhash peak {minhash_peak / 1e6:.1f} MB scales with rows"
+
+
+class TestStreamingProvider:
+    """StreamingProvider had no coverage at all; these are its first tests."""
+
+    def test_sketches_from_generators(self):
+        from lakesense.sketches.providers.streaming import StreamingProvider
+
+        n = 5_000
+        data = {
+            "user_id": (f"u_{i}" for i in range(n)),
+            "amount": (float(i % 100) for i in range(n)),
+            "note": (f"note {i % 20} body" for i in range(n)),
+        }
+        records = StreamingProvider().sketch(
+            data=data,
+            dataset_id="ds",
+            job_id="job",
+            id_columns=["user_id"],
+            numeric_columns=["amount"],
+            text_columns=["note"],
+            include_profiles=False,
+        )
+        by_type = {r.sketch_type for r in records}
+        assert by_type == {"hll", "kll", "minhash"}
+        assert all(isinstance(r.sketch_blob, bytes) and r.sketch_blob for r in records)

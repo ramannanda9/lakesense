@@ -53,8 +53,10 @@ class PandasProvider(SketchProvider):
                 **kwargs,
             )
 
+        # to_numpy() rather than tolist() — the sketch functions consume arrays
+        # directly, so materializing an intermediate Python list is pure overhead.
         for col in text_columns or []:
-            vals = data[col].dropna().tolist()
+            vals = data[col].dropna().to_numpy()
             blob, _ = compute_minhash(vals, tokenizer="word_ngram")
             records.append(_base(col, "minhash", blob, num_perm=128, sketch_config={"tokenizer": "word_ngram"}))
 
@@ -64,8 +66,8 @@ class PandasProvider(SketchProvider):
             records.append(_base(col, "hll", blob, sketch_config={"p": 12}))
 
         for col in numeric_columns or []:
-            vals = data[col].dropna().tolist()
-            if vals:
+            vals = data[col].dropna().to_numpy()
+            if vals.size:
                 blob, quantiles = compute_kll(vals)
                 records.append(_base(col, "kll", blob, sketch_config={"quantiles": quantiles}))
 
