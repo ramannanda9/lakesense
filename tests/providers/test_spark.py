@@ -30,6 +30,12 @@ def spark():
             .getOrCreate()
         )
     except Exception as e:
+        # Locally a missing JVM is a reason to skip. In CI it is not: this test is
+        # the only thing verifying that SparkProvider's map-reduce agrees with
+        # PandasProvider, and a silent skip lets a green run mean nothing. It went
+        # unnoticed for exactly that reason before #13.
+        if os.environ.get("CI"):
+            raise RuntimeError(f"Spark tests must run in CI, but the JVM failed to start — {e}") from e
         pytest.skip(f"Skipping Spark tests: Unable to initialize PySpark JVM — {str(e)}")
 
 
