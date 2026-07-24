@@ -31,10 +31,42 @@ jobs:
       - name: Run tests
         run: pytest tests/unit/ -v --tb=short
 
+  test-providers:
+    name: Test ${{ matrix.provider }} Provider
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: spark
+            extras: "spark,dev"
+            test_path: tests/providers/test_spark.py
+          - provider: anthropic
+            extras: "anthropic,dev"
+            test_path: tests/providers/test_llm_providers.py
+          - provider: openai
+            extras: "openai,dev"
+            test_path: tests/providers/test_llm_providers.py
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[${{ matrix.extras }}]"
+
+      - name: Run ${{ matrix.provider }} tests
+        run: pytest ${{ matrix.test_path }} -v --tb=short
+
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, test-providers]
     environment: pypi
     permissions:
       id-token: write
