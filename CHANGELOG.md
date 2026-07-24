@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-07-24
+
+### Changed
+- `compute_kll` ingests values through the native `datasketches` ndarray overload
+  instead of a per-row Python loop, with moments computed by numpy rather than a
+  scalar Welford accumulator (~10x on 1M rows). **Quantile values may differ
+  slightly from 0.3.0** — KLL's reservoir sampling depends on the order and
+  batching of updates. The shift is within KLL's inherent rank error at k=200 and
+  is unbiased, but a baseline computed under 0.3.0 may show a small quantile delta
+  when compared against a 0.3.1 run. Recompute baselines to avoid a one-time
+  false drift signal. `mean`/`std` are unaffected (identical to 1e-9).
+- `compute_minhash` tokenizes each distinct value once instead of every row
+  (1.45x–20x depending on how often values repeat). Theta sketch output is
+  bit-identical to 0.3.0 — the sketch is a set, so deduplicating inputs cannot
+  change the result.
+- `PandasProvider` passes numpy arrays to the sketch functions rather than
+  materializing intermediate Python lists.
+- `compute_hll` is deliberately unchanged. `hll_sketch.update` has no array
+  overload, and deduplicating inputs regresses ~21% on high-cardinality columns
+  at Spark's default 10k-row batch size — precisely the `id_columns` case.
+
+### Fixed
+- `compute_kll` and `compute_minhash` keep peak memory constant for one-shot
+  iterables, preserving `StreamingProvider`'s O(1) contract over file-backed
+  generators. Values are consumed in bounded blocks and the minhash dedup memo is
+  capped, rather than materializing the column.
+- The Spark provider test no longer converts a JVM startup failure into a skip
+  when running under CI, where a silent skip made a green run meaningless.
+- `publish.yml` now runs the provider test suites before publishing; previously
+  only `tests/unit/` gated a release.
+- The benchmark CI job no longer fails the build when a performance alert fires —
+  it lacked the `pull-requests`/`issues` permissions its alert comment requires.
+
+### Added
+- First test coverage for `StreamingProvider` and for generator inputs to the
+  sketch functions, including a peak-memory regression guard.
+
 ## [0.3.0] — 2026-05-05
 
 ### Added
