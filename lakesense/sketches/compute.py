@@ -12,12 +12,12 @@ Supported sketch types:
 
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
 
+import numpy as np
 from datasketches import (
     compact_theta_sketch,
     hll_sketch,
@@ -100,21 +100,33 @@ def compute_minhash(
         (blob, compact_theta) — blob for storage, theta sketch for immediate comparison
     """
     m = update_theta_sketch(12)  # lg_k=12 gives similar space/accuracy to num_perm=128
+
+    # Theta is a set sketch: updating with a value already seen is a no-op, so
+    # tokenizing each *distinct* value once yields an identical sketch for a
+    # fraction of the work. All three tokenizers lowercase, so we fold the
+    # str()/lower() coercion into the dedup pass and skip it in the loops below.
+    #
+    # dict.fromkeys (not set) is deliberate: it preserves first-occurrence order,
+    # which is deterministic across processes. Theta's retained sample IS
+    # insertion-order dependent, and set iteration order for strings varies with
+    # PYTHONHASHSEED — using one would make blobs irreproducible across Spark workers.
+    distinct = dict.fromkeys(str(val).lower() for val in values)
+
     # Branch resolved once outside the loop — avoids per-iteration dispatch overhead.
     if tokenizer == "word_ngram":
-        for val in values:
-            words = str(val).lower().split()
+        for val in distinct:
+            words = val.split()
             for w in words:
                 m.update(w)
             for i in range(len(words) - 1):
                 m.update(words[i] + " " + words[i + 1])
     elif tokenizer == "char_shingle":
-        for val in values:
-            for token in _char_shingle_tokens(str(val)):
+        for val in distinct:
+            for token in _char_shingle_tokens(val):
                 m.update(token)
     else:  # whitespace (legacy)
-        for val in values:
-            for token in str(val).lower().split():
+        for val in distinct:
+            for token in val.split():
                 m.update(token)
     compact = m.compact()
     return compact.serialize(), compact
@@ -140,6 +152,27 @@ def compute_hll(
     return h.serialize_updatable(), h
 
 
+def _as_float_array(values: Iterable[float]) -> np.ndarray:
+    """
+    Coerce any float iterable into a contiguous float64 array with nulls/NaNs dropped.
+
+    Accepts lists, pandas Series, ndarrays and generators — the sketch providers
+    each hand us a different one, and compute.py stays pandas-free (pandas is an
+    optional extra) so this cannot lean on pandas coercion.
+    """
+    if isinstance(values, np.ndarray):
+        arr = values.astype(np.float64, copy=False)
+    elif hasattr(values, "to_numpy"):  # pandas Series/Index, without importing pandas
+        arr = values.to_numpy(dtype=np.float64, copy=False)
+    elif isinstance(values, list | tuple):
+        arr = np.asarray(values, dtype=np.float64)
+    else:  # generators and other one-shot iterables
+        arr = np.fromiter((float(v) for v in values if v is not None), dtype=np.float64)
+
+    arr = np.ascontiguousarray(arr.ravel())
+    return arr[~np.isnan(arr)]
+
+
 def compute_kll(
     values: Iterable[float],
     k: int = 200,
@@ -157,21 +190,17 @@ def compute_kll(
     """
     sk = kll_doubles_sketch(k)
 
-    n = 0
-    mean = 0.0
-    m2 = 0.0
-
-    for val in values:
-        if val is None or math.isnan(val):
-            continue
-        v = float(val)
-        sk.update(v)
-        n += 1
-        delta = v - mean
-        mean += delta / n
-        m2 += delta * (v - mean)
-
-    std = math.sqrt(m2 / n) if n > 0 else 0.0
+    # kll_doubles_sketch.update has a native ndarray overload that ingests the
+    # whole column in C, and numpy computes mean/std in C too — together ~10x
+    # faster than the per-row loop plus Welford this replaces.
+    arr = _as_float_array(values)
+    if arr.size:
+        sk.update(arr)
+        mean = float(arr.mean())
+        std = float(arr.std())  # ddof=0, matching the Welford accumulator this replaces
+    else:
+        mean = 0.0
+        std = 0.0
 
     if sk.is_empty():
         return sk.serialize(), {}
