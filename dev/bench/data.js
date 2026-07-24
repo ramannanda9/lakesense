@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778030032184,
+  "lastUpdate": 1784928596744,
   "repoUrl": "https://github.com/ramannanda9/lakesense",
   "entries": {
     "Benchmark": [
@@ -1362,6 +1362,233 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0007566735140500579",
             "extra": "mean: 63.16312618749809 msec\nrounds: 16"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ramannanda9@gmail.com",
+            "name": "Ramandeep Singh",
+            "username": "ramannanda9"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4cc86c0b7e868750a90bcabf7fbdfea7b02f2d67",
+          "message": "perf(sketches): vectorize KLL ingest and dedup Theta tokenization (#13)\n\n* perf(sketches): vectorize KLL ingest and dedup Theta tokenization\n\ncompute_kll looped in Python and hand-rolled Welford for mean/std, ignoring\nthe native ndarray overload on kll_doubles_sketch.update. Feeding the whole\ncolumn to the C path and letting numpy do mean/std is ~10x faster on 1M rows\n(0.238s -> 0.023s).\n\ncompute_minhash tokenized every row even when values repeat. Theta is a set\nsketch, so updating with an already-seen value is a no-op — tokenizing each\ndistinct value once produces the same sketch for a fraction of the work.\nMeasured at Spark's default 10k-row Arrow batch size: 1.45x when all values\nare distinct, 4x at 2k distinct/batch, 20x at 100 distinct/batch.\n\nDedup uses dict.fromkeys rather than a set: Theta's retained sample is\ninsertion-order dependent, and set iteration order for strings varies with\nPYTHONHASHSEED, which would make blobs irreproducible across Spark workers.\ndict.fromkeys preserves first-occurrence order, verified to give byte-identical\nblobs across PYTHONHASHSEED=1,2,3. It also benchmarks faster than pd.unique and\nkeeps compute.py free of pandas, which is an optional extra.\n\ncompute_hll is deliberately left alone. The same dedup trick regresses 21% on\nhigh-cardinality columns at 10k-row batches — exactly the id_columns case it\nwould target — and a sampling heuristic to gate it proved unreliable.\n\nPandasProvider now passes numpy arrays instead of materializing Python lists.\n\n* fix(sketches): keep vectorized paths O(1) memory for streaming inputs\n\nThe previous commit materialized inputs into an array (compute_kll) and an\nunbounded dedup dict (compute_minhash). Both are fine for PandasProvider and\nSparkProvider, where the batch is already resident, but they broke\nStreamingProvider's documented \"strictly O(1) memory\" contract over\nfile-backed generators. Measured over a 2M-row generator:\n\n    compute_kll               0.0 MB -> 34.0 MB\n    compute_minhash (distinct) 0.1 MB -> 210.5 MB\n\nand both grew with row count. StreamingProvider has no tests, so nothing caught it.\n\ncompute_kll now consumes one-shot iterables in 64Ki-element blocks, feeding each\nblock to the same native ndarray overload and combining per-block moments with\nChan et al.'s parallel variance. Already-materialized inputs (ndarray, Series,\nlist) still take a single-block fast path, so nothing is copied that wasn't\nalready in memory and the ~10x stands.\n\ncompute_minhash caps its dedup memo and clears it on overflow. Theta is\nidempotent, so re-tokenizing an evicted value cannot change the result — it only\ncosts redundant work on columns where dedup was never going to pay.\n\nPeak memory is now flat at 1.76 MB (kll) and ~6.8 MB (minhash) across 1M/4M/16M\nrows. Theta output stays bit-identical to main across all 9 tokenizer/data\ncombinations; KLL mean/std match to 1e-9. End-to-end provider throughput is\nunchanged at 2.1x.\n\nAdds the first tests for StreamingProvider and for generator inputs, including a\npeak-memory regression guard verified to fail against the previous commit.",
+          "timestamp": "2026-07-24T14:27:37-07:00",
+          "tree_id": "cdd7229fba3755ceaebae6496273179860bd3db1",
+          "url": "https://github.com/ramannanda9/lakesense/commit/4cc86c0b7e868750a90bcabf7fbdfea7b02f2d67"
+        },
+        "date": 1784928595788,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_minhash[1000]",
+            "value": 2418.7580563259808,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00000924644814212265",
+            "extra": "mean: 413.4353154440628 usec\nrounds: 1826"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_minhash[10000]",
+            "value": 223.56175117854718,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004843083081623526",
+            "extra": "mean: 4.4730370679613785 msec\nrounds: 206"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_minhash[100000]",
+            "value": 22.647497129200083,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00028034192387916694",
+            "extra": "mean: 44.15498959091027 msec\nrounds: 22"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_hll[1000]",
+            "value": 11112.822353358682,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000002922474657824682",
+            "extra": "mean: 89.98614107223312 usec\nrounds: 9123"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_hll[10000]",
+            "value": 1174.8269393292128,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000020997739470617117",
+            "extra": "mean: 851.189197764708 usec\nrounds: 1163"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_hll[100000]",
+            "value": 129.83730930707458,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004577131445556927",
+            "extra": "mean: 7.701946423080349 msec\nrounds: 130"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_kll[1000]",
+            "value": 31394.922634837894,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000022578663463769717",
+            "extra": "mean: 31.852284257274565 usec\nrounds: 4904"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_kll[10000]",
+            "value": 2353.4816185226623,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000009974675645947174",
+            "extra": "mean: 424.9024050707158 usec\nrounds: 1854"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchCompute::test_compute_kll[100000]",
+            "value": 219.0348743799554,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004844490108774311",
+            "extra": "mean: 4.565483021052255 msec\nrounds: 190"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_minhash[7]",
+            "value": 5578.421265715326,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000008396896599556839",
+            "extra": "mean: 179.2621876992234 usec\nrounds: 3756"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_minhash[30]",
+            "value": 1982.025795899318,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000010446044428233046",
+            "extra": "mean: 504.5343012532606 usec\nrounds: 1756"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_minhash[90]",
+            "value": 1478.674526264842,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00002957704328776821",
+            "extra": "mean: 676.2813467315337 usec\nrounds: 1269"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_hll[7]",
+            "value": 36821.80149682035,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000013171017138827371",
+            "extra": "mean: 27.157823880136675 usec\nrounds: 14104"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_hll[30]",
+            "value": 13998.783049875541,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000002287784129141292",
+            "extra": "mean: 71.43478089753599 usec\nrounds: 7193"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_merge_hll[90]",
+            "value": 5342.5753723715015,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000072710506643766615",
+            "extra": "mean: 187.17564663128238 usec\nrounds: 3577"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_build_baseline_rolling[7]",
+            "value": 5696.962868580737,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00000832582489159013",
+            "extra": "mean: 175.53212528645568 usec\nrounds: 3488"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_build_baseline_rolling[30]",
+            "value": 1925.3933842185156,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000011618882575979081",
+            "extra": "mean: 519.3743825009989 usec\nrounds: 1600"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestSketchMerge::test_build_baseline_rolling[90]",
+            "value": 1455.6189859900305,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000010333157625241954",
+            "extra": "mean: 686.9929628733553 usec\nrounds: 1239"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProfiling::test_profile_dataframe[1000]",
+            "value": 388.6801692990137,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00017157478720533038",
+            "extra": "mean: 2.5728094175823384 msec\nrounds: 182"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProfiling::test_profile_dataframe[10000]",
+            "value": 170.1275256793189,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00009070006854832005",
+            "extra": "mean: 5.877943595588085 msec\nrounds: 136"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProfiling::test_profile_dataframe[100000]",
+            "value": 20.635029283260497,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0009381549580360989",
+            "extra": "mean: 48.461283300005675 msec\nrounds: 20"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProviderE2E::test_pandas_provider_sketch[1000]",
+            "value": 150.85352284575464,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0026165879920803953",
+            "extra": "mean: 6.628946948905424 msec\nrounds: 137"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestProviderE2E::test_pandas_provider_sketch[10000]",
+            "value": 28.354388372180427,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001147637829279291",
+            "extra": "mean: 35.26790939285921 msec\nrounds: 28"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_write_sketches[10]",
+            "value": 1012.6310448603006,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0026934513545033385",
+            "extra": "mean: 987.5265083720171 usec\nrounds: 657"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_write_sketches[100]",
+            "value": 218.5380233535978,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0038875317004062986",
+            "extra": "mean: 4.575862747609761 msec\nrounds: 523"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_write_sketches[500]",
+            "value": 32.74542837427303,
+            "unit": "iter/sec",
+            "range": "stddev: 0.03345987974409558",
+            "extra": "mean: 30.53861407981048 msec\nrounds: 213"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_read_sketches[10]",
+            "value": 1270.339877064971,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004278261944110255",
+            "extra": "mean: 787.1909069802863 usec\nrounds: 129"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_read_sketches[100]",
+            "value": 645.4268608125534,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005722679439861151",
+            "extra": "mean: 1.5493622294260583 msec\nrounds: 401"
+          },
+          {
+            "name": "benchmarks/test_bench_core.py::TestStorageIO::test_read_sketches[500]",
+            "value": 138.7579857081359,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003772535768440952",
+            "extra": "mean: 7.206792422768403 msec\nrounds: 123"
           }
         ]
       }
